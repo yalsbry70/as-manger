@@ -516,7 +516,17 @@ function Main() {
 
           {tab === "customers" && <>
             <div className="ph"><div><h1>العملاء</h1><p>{d.c.length ? `${d.c.length} عميل` : "أضف العملاء لربط الأعمال بهم"}</p></div>{nowLabel && <span className="today">{nowLabel}</span>}</div>
-            <NewBox title="عميل" fields={[["name", "الاسم", 1], ["phone", "الجوال", 0, "tel"], ["district", "الحي"], ["address", "العنوان"], ["map_url", "رابط الموقع"]]} onAdd={(v) => run(sb.from("customers").insert(v))} />
+            <NewBox
+              title="عميل"
+              fields={[
+                ["name", "الاسم", 1],
+                ["phone", "الجوال", 1, "tel"],
+                ["district", "الحي", 1],
+                ["address", "العنوان", 1],
+                ["map_url", "رابط خرائط جوجل (اختياري)", 0, "url", "https://maps.google.com/..."],
+              ]}
+              onAdd={(v) => run(sb.from("customers").insert(v))}
+            />
             {d.c.map((c) => {
               const cj = d.j.filter((j) => j.customer_id === c.id);
               const open = cj.filter((j) => j.status !== "cancelled");
@@ -692,12 +702,21 @@ function NewBox({ title, fields, onAdd }) {
   return (
     <form className="card" onSubmit={async (e) => {
       e.preventDefault();
-      const ok = await onAdd(Object.fromEntries(Object.entries(v).filter(([, x]) => x)));
+      const ok = await onAdd(Object.fromEntries(Object.entries(v).filter(([, x]) => String(x || "").trim())));
       if (ok) setV({});
     }}>
       <div className="card-h"><b>إضافة {title}</b></div>
-      <div className="two">{fields.map(([k, l, r, mode]) =>
-        <F key={k} l={l}><input required={!!r} inputMode={mode || "text"} value={v[k] || ""} onChange={(e) => setV({ ...v, [k]: e.target.value })} /></F>)}</div>
+      <div className="two">{fields.map(([k, l, r, mode, ph]) =>
+        <F key={k} l={l}>
+          <input
+            required={!!r}
+            type={mode === "url" ? "url" : "text"}
+            inputMode={mode === "url" ? "url" : (mode || "text")}
+            placeholder={ph || ""}
+            value={v[k] || ""}
+            onChange={(e) => setV({ ...v, [k]: e.target.value })}
+          />
+        </F>)}</div>
       <div className="composer-a"><button className="pri"><Plus size={16} /> حفظ {title}</button></div>
     </form>
   );
@@ -906,10 +925,12 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
           </F>
           {v.customer_id === "new" && <div className="two">
             <F l="اسم العميل"><input required value={g("nm")} onChange={set("nm")} /></F>
-            <F l="الجوال"><input inputMode="tel" value={g("ph")} onChange={set("ph")} /></F>
-            <F l="الحي"><input value={g("di")} onChange={set("di")} placeholder="مثال: البوادي" /></F>
-            <F l="العنوان"><input value={g("ad")} onChange={set("ad")} placeholder="الشارع / المبنى / تفصيل إضافي" /></F>
-            <F l="رابط الموقع"><input value={g("mp")} onChange={set("mp")} placeholder="https://" /></F>
+            <F l="الجوال"><input required inputMode="tel" value={g("ph")} onChange={set("ph")} /></F>
+            <F l="الحي"><input required value={g("di")} onChange={set("di")} placeholder="مثال: البوادي" /></F>
+            <F l="العنوان"><input required value={g("ad")} onChange={set("ad")} placeholder="الشارع / المبنى / تفصيل إضافي" /></F>
+            <F l="رابط خرائط جوجل (اختياري)">
+              <input type="url" inputMode="url" value={g("mp")} onChange={set("mp")} placeholder="https://maps.google.com/..." />
+            </F>
           </div>}
           <div className="sec-label">تفاصيل الخدمة</div>
           <div className="two equal">
