@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase as sb } from "../lib/supabase";
 import { RiyalIcon } from "riyal/react";
 import {
   Wrench, Users, UserCog, Wallet, Phone, MapPin, Plus, Pencil, Trash2,
-  LogOut, Search, X, Calendar, TrendingUp, Clock, Printer,
+  LogOut, Search, X, Calendar, TrendingUp, Clock, FileText,
 } from "lucide-react";
 
 const SV = { install: "تركيب", maintenance: "صيانة", cleaning: "تنظيف", gas_refill: "تعبئة فريون", relocation: "نقل", other: "أخرى" };
@@ -85,46 +85,131 @@ const today = () => new Date().toISOString().slice(0, 10);
 const F = ({ l, children }) => (<label className="f"><span>{l}</span>{children}</label>);
 const wa = (p) => "https://wa.me/" + String(p || "").replace(/\D/g, "");
 const tel = (p) => "tel:+" + String(p || "").replace(/\D/g, "");
-function printInvoice(job, customer, engineer) {
+function invoiceMarkup(job, customer, engineer) {
   const bal = custBal(job.remaining);
   const spec = [job.brand, job.ac_type].filter(Boolean).join(" ");
+  const note = jobNotes(job);
+  const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const rows = [
+    ["العميل", customer?.name || "—"],
+    ["الجوال", customer?.phone || "—"],
+    ["العنوان", customer?.address || "—"],
     ["نوع العمل", serviceName(job)],
     ["الجهاز", spec ? `${spec} × ${job.units || 1}` : "—"],
     ["التاريخ", dt(job.job_date) || "—"],
     ["الحالة", ST[job.status] || "—"],
-    ["المهندس", engineer?.name ? "م. " + engineer.name : "—"],
-    ["سعر العمل", num(job.price)],
-    ["المقبوض", num(job.paid)],
-    [bal.label, num(Math.abs(bal.value))],
-    ["حق المهندس", num(job.engineer_fee)],
-    ["تكلفة المواد", num(job.materials_cost)],
+    ["المهندس", engineer?.name ? "م. " + engineer.name : "بدون مهندس"],
+    ["سعر العمل", num(job.price) + " ر.س"],
+    ["المقبوض", num(job.paid) + " ر.س"],
+    [bal.label, num(Math.abs(bal.value)) + " ر.س"],
+    ["حق المهندس", num(job.engineer_fee) + " ر.س"],
+    ["تكلفة المواد", num(job.materials_cost) + " ر.س"],
+    ["صافي الربح", num(job.profit) + " ر.س"],
   ];
-  const note = jobNotes(job);
-  const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title>فاتورة — ${customer?.name || "عميل"}</title>
-<style>
-  body{font-family:Tahoma,Arial,sans-serif;color:#0f172a;margin:32px;background:#fff}
-  h1{margin:0 0 4px;font-size:22px} .sub{color:#64748b;margin:0 0 20px;font-size:13px}
-  .box{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:16px}
-  .row{display:flex;justify-content:space-between;gap:16px;padding:10px 14px;border-top:1px solid #e2e8f0;font-size:14px}
-  .row:first-child{border-top:0} .row span{color:#64748b} .row b{font-weight:700}
-  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px}
-  .logo{font-size:13px;font-weight:700;color:#0f766e}
-  .note{margin-top:12px;padding:12px;background:#f8fafc;border-radius:10px;font-size:13px;white-space:pre-wrap}
-  @media print{body{margin:12px}}
-</style></head><body>
-  <div class="head"><div><div class="logo">مهندس المكيفات</div><h1>فاتورة عمل</h1><p class="sub">${customer?.name || "عميل"} · ${customer?.phone || ""}</p></div>
-  <div class="sub">${new Date().toLocaleString("ar-SA-u-nu-latn")}</div></div>
-  <div class="box">${rows.map(([k,v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join("")}</div>
-  ${customer?.address ? `<p class="sub">العنوان: ${customer.address}</p>` : ""}
-  ${note ? `<div class="note">${note.replace(/</g,"&lt;")}</div>` : ""}
-  <script>window.onload=()=>{window.print();}</script>
-</body></html>`;
-  const w = window.open("", "_blank", "noopener,noreferrer,width=720,height=900");
-  if (!w) return;
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  return `
+  <div style="width:794px;box-sizing:border-box;padding:40px 44px;background:#fff;color:#0f172a;font-family:Tahoma,'Segoe UI',Arial,sans-serif;direction:rtl;text-align:right">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid #0f766e;padding-bottom:18px;margin-bottom:22px">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#0f766e;letter-spacing:.04em;margin-bottom:6px">مهندس المكيفات</div>
+        <div style="font-size:28px;font-weight:800;margin:0;letter-spacing:-.02em">فاتورة عمل</div>
+        <div style="margin-top:8px;color:#64748b;font-size:13px">${esc(customer?.name || "عميل")}${customer?.phone ? " · " + esc(customer.phone) : ""}</div>
+      </div>
+      <div style="text-align:left;color:#64748b;font-size:12px;line-height:1.7">
+        <div style="display:inline-block;background:#ecfdf5;color:#0f766e;border:1px solid #a7f3d0;border-radius:999px;padding:4px 10px;font-weight:700;margin-bottom:8px">PDF</div>
+        <div>${esc(new Date().toLocaleString("ar-SA-u-nu-latn"))}</div>
+        <div>رقم مرجعي: ${esc(String(job.id || "").slice(0, 8) || "—")}</div>
+      </div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:14px;overflow:hidden">
+      ${rows.map(([k, v], i) => `
+        <div style="display:flex;justify-content:space-between;gap:18px;padding:12px 16px;background:${i % 2 ? "#f8fafc" : "#fff"};border-top:${i ? "1px solid #e2e8f0" : "0"}">
+          <span style="color:#64748b;font-size:13px;font-weight:600">${esc(k)}</span>
+          <b style="font-size:14px;font-weight:700;color:#0f172a">${esc(v)}</b>
+        </div>`).join("")}
+    </div>
+    ${note ? `<div style="margin-top:18px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-right:4px solid #0f766e;border-radius:12px;font-size:13px;line-height:1.7;white-space:pre-wrap">${esc(note)}</div>` : ""}
+    <div style="margin-top:28px;display:flex;justify-content:space-between;gap:12px;color:#94a3b8;font-size:11px">
+      <span>شكرًا لتعاملكم معنا</span>
+      <span>مستند PDF رسمي — مهندس المكيفات</span>
+    </div>
+  </div>`;
+}
+async function downloadInvoicePdf(job, customer, engineer) {
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-10000px;top:0;pointer-events:none;opacity:1";
+  host.innerHTML = invoiceMarkup(job, customer, engineer);
+  document.body.appendChild(host);
+  try {
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+    const target = host.firstElementChild;
+    const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+    const img = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 8;
+    const usableW = pageW - margin * 2;
+    const imgH = (canvas.height * usableW) / canvas.width;
+    const h = Math.min(imgH, pageH - margin * 2);
+    pdf.addImage(img, "PNG", margin, margin, usableW, h);
+    const safe = String(customer?.name || "فاتورة").replace(/[\\/:*?"<>|]/g, "-");
+    pdf.save(`فاتورة-${safe}.pdf`);
+  } finally {
+    host.remove();
+  }
+}
+function NiceSelect({ value, onChange, options, placeholder = "اختر", className = "", muted = false, required = false }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  const selected = options.find((o) => String(o.value) === String(value));
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div className={"ns" + (open ? " open" : "") + (muted ? " muted" : "") + (className ? " " + className : "")} ref={box}>
+      <button
+        type="button"
+        className="ns-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className={!selected || selected.value === "" ? "ns-ph" : ""}>{selected?.label || placeholder}</span>
+      </button>
+      {required && <input tabIndex={-1} value={value ?? ""} required readOnly style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1 }} />}
+      {open && (
+        <ul className="ns-menu" role="listbox">
+          {options.map((o) => (
+            <li key={String(o.value)}>
+              <button
+                type="button"
+                className={"ns-opt" + (String(o.value) === String(value) ? " on" : "") + (o.dim ? " dim" : "")}
+                role="option"
+                aria-selected={String(o.value) === String(value)}
+                onClick={() => {
+                  onChange({ target: { value: o.value } });
+                  setOpen(false);
+                }}
+              >
+                {o.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 function Kpi({ tone, icon, label, valueClass, children }) {
   return (
@@ -252,12 +337,12 @@ function Main() {
     <div className="shell">
       <aside className="side">
         <div className="brand"><span className="logo"><Mark size={22} /></span><div><b>مهندس المكيفات</b><small>سجل الأعمال والحسابات</small></div></div>
-        <nav>
+        <nav className="side-nav" aria-label="القائمة الرئيسية">
           {nav.map(([k, l, I]) => (
-            <button type="button" key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>
-              <I size={18} strokeWidth={tab === k ? 2.4 : 2} />
-              <span>{l}</span>
-              {k === "jobs" && openN > 0 && <span className="nb">{openN}</span>}
+            <button type="button" key={k} className={"nav-item" + (tab === k ? " on" : "")} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>
+              <I size={18} strokeWidth={tab === k ? 2.4 : 2} className="nav-ico" />
+              <span className="nav-label">{l}</span>
+              <span className={"nav-badge" + (k === "jobs" && openN > 0 ? " show" : "")}>{k === "jobs" && openN > 0 ? openN : ""}</span>
             </button>
           ))}
         </nav>
@@ -287,9 +372,12 @@ function Main() {
                 <Search size={16} />
                 <input placeholder="بحث باسم العميل أو جواله" value={q} onChange={(x) => setQ(x.target.value)} />
               </div>
-              <select className="nice" value={f} onChange={(x) => setF(x.target.value)} aria-label="تصفية الحالة">
-                <option value="all">كل الحالات</option>{Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
+              <NiceSelect
+                className="bar-ns"
+                value={f}
+                onChange={(x) => setF(x.target.value)}
+                options={[{ value: "all", label: "كل الحالات" }, ...Object.entries(ST).map(([k, v]) => ({ value: k, label: v }))]}
+              />
               <button type="button" className="pri" onClick={() => setForm({ customer_id: "", service_type: "install", status: "new", units: 1, warranty_months: 12, job_date: today() })}><Plus size={17} /> عمل جديد</button>
             </div>
             {jobs.map((j) => {
@@ -306,7 +394,7 @@ function Main() {
                     <div><small>نوع العمل</small><b>{serviceName(j)}</b></div>
                     <div><small>الجهاز</small><b>{spec ? `${spec} × ${j.units}` : "—"}</b></div>
                     <div><small>التاريخ</small><b>{dt(j.job_date) || "بدون تاريخ"}</b></div>
-                    <div><small>المهندس</small><b>{em[j.engineer_id]?.name || "بدون مهندس"}</b></div>
+                    <div className={!j.engineer_id ? "dim" : ""}><small>المهندس</small><b>{em[j.engineer_id]?.name || "بدون مهندس"}</b></div>
                     <div><small>السعر</small><b>{R(j.price)}</b></div>
                     <div><small>المقبوض</small><b>{R(j.paid)}</b></div>
                     <div className={custBal(j.remaining).kind}><small>{custBal(j.remaining).label}</small><b>{Sign(custBal(j.remaining).value)}</b></div>
@@ -324,7 +412,7 @@ function Main() {
                   <div className="acts" onClick={(e) => e.stopPropagation()}>
                     {j.status !== "completed" && <button type="button" className="soft done" onClick={() => setStatus(j.id, "completed")}>مكتمل</button>}
                     <button type="button" className="soft" onClick={() => setAsk({ kind: "cust", job: j })}><Plus size={16} /> تسجيل دفعة</button>
-                    <button type="button" className="soft print" onClick={() => printInvoice(j, c, em[j.engineer_id])}><Printer size={16} /> طباعة الفاتورة</button>
+                    <button type="button" className="soft pdf" onClick={() => downloadInvoicePdf(j, c, em[j.engineer_id])}><FileText size={16} /> تصدير PDF</button>
                     <div className="ibs">
                       {c?.phone && <a className="ib call" title="اتصال" href={tel(c.phone)}><Phone size={17} /></a>}
                       {c?.phone && <a className="ib wa" title="واتساب العميل" href={wa(c.phone)} target="_blank" rel="noreferrer"><WaIcon /></a>}
@@ -616,7 +704,7 @@ function JobDetail({ job, customer, engineer, originJob, engineers, receipts, on
             <div><dt>الجوال</dt><dd>{customer?.phone || "—"}</dd></div>
             <div><dt>العنوان</dt><dd>{customer?.address || "—"}</dd></div>
             <div><dt>نوع العمل</dt><dd>{serviceName(job)}</dd></div>
-            <div><dt>المهندس</dt><dd>{engineer?.name ? "م. " + engineer.name : "بدون مهندس"}</dd></div>
+            <div><dt>المهندس</dt><dd className={engineer?.name ? "" : "muted-val"}>{engineer?.name ? "م. " + engineer.name : "بدون مهندس"}</dd></div>
             {engineer?.phone && <div><dt>جوال المهندس</dt><dd>{engineer.phone}</dd></div>}
             {originJob && <div><dt>التركيب الأصلي</dt><dd>{engineers[originJob.engineer_id]?.name || "—"} ({dt(originJob.job_date) || "بدون تاريخ"})</dd></div>}
             <div><dt>السعر</dt><dd>{R(job.price)}</dd></div>
@@ -643,7 +731,7 @@ function JobDetail({ job, customer, engineer, originJob, engineers, receipts, on
         <div className="mf">
           {job.status !== "completed" && <button type="button" className="pri" onClick={() => onStatus("completed")}>مكتمل</button>}
           <button type="button" className="pri" onClick={onPay}>تسجيل دفعة</button>
-          <button type="button" className="soft print" onClick={() => printInvoice(job, customer, engineer)}><Printer size={16} /> طباعة الفاتورة</button>
+          <button type="button" className="soft pdf" onClick={() => downloadInvoicePdf(job, customer, engineer)}><FileText size={16} /> تصدير PDF</button>
           <button type="button" onClick={onEdit}>تعديل</button>
         </div>
       </div>
@@ -654,13 +742,14 @@ function JobDetail({ job, customer, engineer, originJob, engineers, receipts, on
 function CatalogSelect({ label, value, onChange, rows }) {
   const names = rows.map((r) => r.name);
   const extra = value && !names.includes(value) ? [value] : [];
+  const options = [
+    { value: "", label: "—" },
+    ...extra.map((name) => ({ value: name, label: name })),
+    ...names.map((name) => ({ value: name, label: name })),
+  ];
   return (
     <F l={label}>
-      <select className="nice" value={value} onChange={onChange}>
-        <option value="">—</option>
-        {extra.map((name) => <option key={name} value={name}>{name}</option>)}
-        {names.map((name) => <option key={name} value={name}>{name}</option>)}
-      </select>
+      <NiceSelect value={value} onChange={onChange} options={options} placeholder="—" />
     </F>
   );
 }
@@ -715,10 +804,18 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
         </div>
         <div className="body">
           <div className="sec-label">العميل</div>
-          <F l="العميل"><select className="nice" required value={g("customer_id")} onChange={set("customer_id")}>
-            <option value="" disabled>اختر العميل</option><option value="new">+ عميل جديد</option>
-            {d.c.map((c) => <option key={c.id} value={c.id}>{c.name} {c.phone || ""}</option>)}
-          </select></F>
+          <F l="العميل">
+            <NiceSelect
+              required
+              value={g("customer_id")}
+              onChange={set("customer_id")}
+              placeholder="اختر العميل"
+              options={[
+                { value: "new", label: "+ عميل جديد" },
+                ...d.c.map((c) => ({ value: c.id, label: `${c.name} ${c.phone || ""}`.trim() })),
+              ]}
+            />
+          </F>
           {v.customer_id === "new" && <div className="two">
             <F l="اسم العميل"><input required value={g("nm")} onChange={set("nm")} /></F>
             <F l="الجوال"><input inputMode="tel" value={g("ph")} onChange={set("ph")} /></F>
@@ -727,12 +824,26 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
           </div>}
           <div className="sec-label">تفاصيل الخدمة</div>
           <div className="two equal">
-            <F l="الخدمة"><select className="nice" value={g("service_type")} onChange={setService}>{Object.entries(SV).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></F>
-            <F l="الحالة"><select className="nice" value={g("status")} onChange={set("status")}>{Object.entries(ST).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></F>
+            <F l="الخدمة">
+              <NiceSelect value={g("service_type")} onChange={setService} options={Object.entries(SV).map(([k, l]) => ({ value: k, label: l }))} />
+            </F>
+            <F l="الحالة">
+              <NiceSelect value={g("status")} onChange={set("status")} options={Object.entries(ST).map(([k, l]) => ({ value: k, label: l }))} />
+            </F>
             {v.service_type === "other" && (
               <F l="نوع العمل (أخرى)"><input required value={g("other_label")} onChange={set("other_label")} placeholder="مثال: فحص كهرباء / استشارة" /></F>
             )}
-            <F l="المهندس المنفّذ"><select className="nice" value={g("engineer_id")} onChange={set("engineer_id")}><option value="">بدون مهندس</option>{d.e.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></F>
+            <F l="المهندس المنفّذ">
+              <NiceSelect
+                muted={!g("engineer_id")}
+                value={g("engineer_id")}
+                onChange={set("engineer_id")}
+                options={[
+                  { value: "", label: "بدون مهندس", dim: true },
+                  ...d.e.map((e) => ({ value: e.id, label: e.name })),
+                ]}
+              />
+            </F>
             <F l="التاريخ"><input type="date" value={g("job_date")} onChange={set("job_date")} /></F>
             <CatalogSelect label="الشركة" value={g("brand")} onChange={set("brand")} rows={brands} />
             <CatalogSelect label="النوع" value={g("ac_type")} onChange={set("ac_type")} rows={types} />
@@ -740,8 +851,16 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
             <F l="الضمان (شهر)"><input type="number" min="0" value={g("warranty_months")} onChange={set("warranty_months")} /></F>
           </div>
           {v.service_type === "maintenance" && inst.length > 0 &&
-            <F l="التركيب الأصلي"><select className="nice" value={g("related_job_id")} onChange={set("related_job_id")}><option value="">تلقائي</option>
-              {inst.map((x) => <option key={x.id} value={x.id}>{x.job_date} — م. {em[x.engineer_id]?.name || "—"}</option>)}</select></F>}
+            <F l="التركيب الأصلي">
+              <NiceSelect
+                value={g("related_job_id")}
+                onChange={set("related_job_id")}
+                options={[
+                  { value: "", label: "تلقائي" },
+                  ...inst.map((x) => ({ value: x.id, label: `${x.job_date} — م. ${em[x.engineer_id]?.name || "—"}` })),
+                ]}
+              />
+            </F>}
           <div className="sec-label">المبالغ</div>
           <div className="two equal">
             <F l="سعر العميل"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("price")} onChange={set("price")} /></F>
