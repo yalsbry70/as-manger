@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, nativeImage } = require("electron");
+const { app, BrowserWindow, shell, Menu, nativeImage, session } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -16,7 +16,7 @@ function resolveIcon() {
   return undefined;
 }
 
-function createWindow() {
+async function createWindow() {
   const icon = resolveIcon();
   const win = new BrowserWindow({
     width: 1280,
@@ -36,24 +36,33 @@ function createWindow() {
   });
 
   Menu.setApplicationMenu(null);
-  win.loadURL(APP_URL);
 
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+  // Avoid stale UI after website deploys
+  try {
+    await session.defaultSession.clearCache();
+  } catch {
+    /* ignore */
+  }
+
+  const url = APP_URL + "/?v=" + Date.now();
+  win.loadURL(url, { extraHeaders: "Cache-Control: no-cache\n" });
+
+  win.webContents.setWindowOpenHandler(({ url: openUrl }) => {
+    shell.openExternal(openUrl);
     return { action: "deny" };
   });
 
-  win.webContents.on("will-navigate", (event, url) => {
-    const allowed = url.startsWith(APP_URL) || url.startsWith("https://abood-33.vercel.app");
+  win.webContents.on("will-navigate", (event, navUrl) => {
+    const allowed = navUrl.startsWith(APP_URL) || navUrl.startsWith("https://abood-33.vercel.app");
     if (!allowed) {
       event.preventDefault();
-      shell.openExternal(url);
+      shell.openExternal(navUrl);
     }
   });
 }
 
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  await createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

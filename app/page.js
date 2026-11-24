@@ -472,16 +472,16 @@ function Main() {
                     <StatusPick value={j.status} onChange={(status) => setStatus(j.id, status)} />
                   </div>
                   <div className="facts">
-                    <div><small>نوع العمل</small><b>{serviceName(j)}</b></div>
-                    <div><small>الجهاز</small><b>{spec ? `${spec} × ${j.units}` : "—"}</b></div>
-                    <div><small>التاريخ</small><b>{dt(j.job_date) || "بدون تاريخ"}</b></div>
-                    <div className={!j.engineer_id ? "dim" : ""}><small>المهندس</small><b>{em[j.engineer_id]?.name || "بدون مهندس"}</b></div>
-                    <div><small>السعر</small><b>{R(j.price)}</b></div>
-                    <div><small>المقبوض</small><b>{R(j.paid)}</b></div>
-                    <div className={custBal(j.remaining).kind}><small>{custBal(j.remaining).label}</small><b>{Sign(custBal(j.remaining).value)}</b></div>
-                    <div><small>حق المهندس</small><b>{R(j.engineer_fee)}</b></div>
-                    <div><small>تكلفة المواد</small><b>{R(j.materials_cost)}</b></div>
-                    <div className={n(j.profit) < 0 ? "over" : "clear"}><small>صافي الربح</small><b>{R(j.profit)}</b></div>
+                    <div className="fact-meta"><small>نوع العمل</small><b>{serviceName(j)}</b></div>
+                    <div className="fact-meta"><small>الجهاز</small><b>{spec ? `${spec} × ${j.units}` : "—"}</b></div>
+                    <div className="fact-meta"><small>التاريخ</small><b>{dt(j.job_date) || "بدون تاريخ"}</b></div>
+                    <div className={"fact-meta" + (!j.engineer_id ? " dim" : "")}><small>المهندس</small><b>{em[j.engineer_id]?.name || "بدون مهندس"}</b></div>
+                    <div className="fact-money"><small>السعر</small><b>{R(j.price)}</b></div>
+                    <div className="fact-money"><small>المقبوض</small><b>{R(j.paid)}</b></div>
+                    <div className={"fact-money " + custBal(j.remaining).kind}><small>{custBal(j.remaining).label}</small><b>{Sign(custBal(j.remaining).value)}</b></div>
+                    <div className="fact-money"><small>حق المهندس</small><b>{R(j.engineer_fee)}</b></div>
+                    <div className="fact-money"><small>تكلفة المواد</small><b>{R(j.materials_cost)}</b></div>
+                    <div className={"fact-money " + (n(j.profit) < 0 ? "over" : "clear")}><small>صافي الربح</small><b>{R(j.profit)}</b></div>
                   </div>
                   {jobNotes(j) && <div className="note"><small>ملاحظات</small><p>{jobNotes(j)}</p></div>}
                   {(o || j.warranty_until) && (
