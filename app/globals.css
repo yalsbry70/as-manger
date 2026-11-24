@@ -366,17 +366,17 @@ button:disabled { opacity: 0.65; cursor: progress; }
   gap: 10px;
   border: 1px solid #d7e0ea;
   border-radius: 12px;
-  background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%230f766e' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 6l4 4 4-4'/></svg>") no-repeat left 12px center / 16px;
+  background: #f8fafc url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%230f766e' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 6l4 4 4-4'/></svg>") no-repeat left 12px center / 16px;
   color: var(--ink);
   padding: 0 12px 0 40px;
   font-weight: 600;
   text-align: right;
   cursor: pointer;
 }
-.ns-btn:hover { border-color: #9fb2c5; background-color: #fbfdff; }
-.ns.open .ns-btn { border-color: var(--pri); box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12); }
+.ns-btn:hover { border-color: #9fb2c5; background-color: #f1f5f9; }
+.ns.open .ns-btn { border-color: var(--pri); box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12); background-color: #fff; }
 .ns-ph { color: #94a3b8; font-weight: 600; }
-.ns.muted .ns-btn { color: #94a3b8; background-color: #f8fafc; border-style: dashed; }
+.ns.muted .ns-btn { color: #94a3b8; background-color: #f1f5f9; border-style: dashed; }
 .ns-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -420,15 +420,15 @@ button:disabled { opacity: 0.65; cursor: progress; }
 .composer-a { display: flex; justify-content: flex-start; margin-top: 4px; }
 
 input, select, textarea {
-  width: 100%; border: 1px solid var(--field); border-radius: 12px; background: #fff; color: var(--ink);
-  padding: 0 12px; height: 42px; transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%; border: 1px solid var(--field); border-radius: 12px; background: #f8fafc; color: var(--ink);
+  padding: 0 12px; height: 42px; transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
-textarea { height: auto; min-height: 84px; padding: 10px 12px; resize: vertical; }
-input:focus, select:focus, textarea:focus { outline: none; border-color: var(--pri); box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12); }
+textarea { height: auto; min-height: 84px; padding: 10px 12px; resize: vertical; background: #f8fafc; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--pri); background: #fff; box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12); }
 select, select.nice {
   appearance: none;
   -webkit-appearance: none;
-  background-color: #fff;
+  background-color: #f8fafc;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%230f766e' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 6l4 4 4-4'/></svg>");
   background-repeat: no-repeat;
   background-position: left 12px center;
@@ -469,7 +469,7 @@ select.nice:focus { border-color: var(--pri); box-shadow: 0 0 0 4px rgba(15, 118
 .body { overflow: auto; padding: 8px 18px 12px; }
 .mf {
   display: flex; gap: 8px; padding: 12px 18px 16px;
-  border-top: 1px solid var(--line); background: #fff;
+  border-top: 1px solid var(--line); background: #f8fafc;
 }
 .mf .pri, .mf .danger { flex: 1; }
 .mf button { flex-shrink: 0; }
