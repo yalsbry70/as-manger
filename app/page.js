@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { supabase as sb } from "../lib/supabase";
 import { RiyalIcon } from "riyal/react";
 import {
@@ -206,11 +207,40 @@ async function downloadInvoicePdf(job, customer, engineer) {
 }
 function NiceSelect({ value, onChange, options, placeholder = "اختر", className = "", muted = false, required = false }) {
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState(null);
   const box = useRef(null);
+  const menu = useRef(null);
   const selected = options.find((o) => String(o.value) === String(value));
+  const place = () => {
+    if (!box.current) return;
+    const r = box.current.getBoundingClientRect();
+    const maxH = Math.min(240, Math.max(140, window.innerHeight - r.bottom - 16));
+    setMenuStyle({
+      position: "fixed",
+      top: Math.round(r.bottom + 6),
+      left: Math.round(r.left),
+      width: Math.round(r.width),
+      maxHeight: maxH,
+      zIndex: 80,
+    });
+  };
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const onScroll = () => place();
+    window.addEventListener("resize", onScroll);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
   useEffect(() => {
     if (!open) return;
-    const close = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
+    const close = (e) => {
+      if (box.current?.contains(e.target) || menu.current?.contains(e.target)) return;
+      setOpen(false);
+    };
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", onKey);
@@ -230,9 +260,9 @@ function NiceSelect({ value, onChange, options, placeholder = "اختر", classN
       >
         <span className={!selected || selected.value === "" ? "ns-ph" : ""}>{selected?.label || placeholder}</span>
       </button>
-      {required && <input tabIndex={-1} value={value ?? ""} required readOnly style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1 }} />}
-      {open && (
-        <ul className="ns-menu" role="listbox">
+      {required && <input tabIndex={-1} value={value ?? ""} required readOnly aria-hidden="true" className="ns-req" />}
+      {open && menuStyle && createPortal(
+        <ul className="ns-menu portal" role="listbox" ref={menu} style={menuStyle}>
           {options.map((o) => (
             <li key={String(o.value)}>
               <button
@@ -249,7 +279,8 @@ function NiceSelect({ value, onChange, options, placeholder = "اختر", classN
               </button>
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body
       )}
     </div>
   );
@@ -909,11 +940,11 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
             <F l="سعر العميل"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("price")} onChange={set("price")} /></F>
             <F l="حق المهندس"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("engineer_fee")} onChange={set("engineer_fee")} /></F>
             <F l="تكلفة المواد"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("materials_cost")} onChange={set("materials_cost")} /></F>
-            {!v.id && <F l="عربون مستلم الآن"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("deposit")} onChange={set("deposit")} /></F>}
+            {!v.id && <F l="عربون مستلم الآن"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("deposit")} onChange={set("deposit")} placeholder="0" /></F>}
           </div>
           <F l="ملاحظات"><textarea rows="3" value={g("notes")} onChange={set("notes")} placeholder="تفاصيل إضافية للمهندس أو للفاتورة" /></F>
         </div>
-        <div className="mf"><button className="pri">حفظ العمل</button><button type="button" onClick={onClose}>إلغاء</button></div>
+        <div className="mf sticky-actions"><button className="pri">حفظ العمل</button><button type="button" onClick={onClose}>إلغاء</button></div>
       </form>
     </Overlay>
   );
