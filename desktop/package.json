@@ -1,0 +1,50 @@
+{
+  "name": "ac-manager-desktop",
+  "version": "1.2.0",
+  "description": "مهندس المكيفات - تطبيق سطح المكتب",
+  "main": "main.js",
+  "author": "abood",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "electron .",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --win dir"
+  },
+  "build": {
+    "appId": "com.acmanager.desktop",
+    "productName": "AC Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "build/icon.ico",
+      "build/icon.png"
+    ],
+    "icon": "build/icon.ico",
+    "afterPack": "./afterPack.js",
+    "win": {
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "AC-Manager-Setup-${version}.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^34.5.8",
+    "electron-builder": "^25.1.8",
+    "rcedit": "^4.0.1"
+  },
+  "allowScripts": {
+    "electron@34.5.8": true
+  }
+}

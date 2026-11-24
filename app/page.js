@@ -4,10 +4,33 @@ import { supabase as sb } from "../lib/supabase";
 import { RiyalIcon } from "riyal/react";
 import {
   Wrench, Users, UserCog, Wallet, Phone, MapPin, Plus, Pencil, Trash2,
-  LogOut, Search, X, Calendar, TrendingUp, Clock,
+  LogOut, Search, X, Calendar, TrendingUp, Clock, Printer,
 } from "lucide-react";
 
-const SV = { install: "تركيب", maintenance: "صيانة", cleaning: "تنظيف", gas_refill: "شحن غاز", relocation: "نقل", other: "أخرى" };
+const SV = { install: "تركيب", maintenance: "صيانة", cleaning: "تنظيف", gas_refill: "تعبئة فريون", relocation: "نقل", other: "أخرى" };
+const SVC_PREFIX = "نوع العمل: ";
+const parseNotes = (notes) => {
+  const raw = String(notes || "");
+  if (raw.startsWith(SVC_PREFIX)) {
+    const i = raw.indexOf("\n");
+    if (i === -1) return { otherLabel: raw.slice(SVC_PREFIX.length).trim(), notes: "" };
+    return { otherLabel: raw.slice(SVC_PREFIX.length, i).trim(), notes: raw.slice(i + 1) };
+  }
+  return { otherLabel: "", notes: raw };
+};
+const packNotes = (serviceType, otherLabel, notes) => {
+  const body = String(notes || "").trim();
+  if (serviceType === "other" && String(otherLabel || "").trim()) {
+    return SVC_PREFIX + String(otherLabel).trim() + (body ? "\n" + body : "");
+  }
+  return body || null;
+};
+const serviceName = (j) => {
+  if (!j) return "—";
+  if (j.service_type === "other") return parseNotes(j.notes).otherLabel || "أخرى";
+  return SV[j.service_type] || j.service_type || "—";
+};
+const jobNotes = (j) => parseNotes(j?.notes).notes;
 const ST = { new: "جديد", scheduled: "مجدول", in_progress: "قيد التنفيذ", completed: "مكتمل", cancelled: "ملغي", postponed: "مؤجل" };
 const n = (v) => Number(v || 0);
 const num = (v) => n(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -62,6 +85,47 @@ const today = () => new Date().toISOString().slice(0, 10);
 const F = ({ l, children }) => (<label className="f"><span>{l}</span>{children}</label>);
 const wa = (p) => "https://wa.me/" + String(p || "").replace(/\D/g, "");
 const tel = (p) => "tel:+" + String(p || "").replace(/\D/g, "");
+function printInvoice(job, customer, engineer) {
+  const bal = custBal(job.remaining);
+  const spec = [job.brand, job.ac_type].filter(Boolean).join(" ");
+  const rows = [
+    ["نوع العمل", serviceName(job)],
+    ["الجهاز", spec ? `${spec} × ${job.units || 1}` : "—"],
+    ["التاريخ", dt(job.job_date) || "—"],
+    ["الحالة", ST[job.status] || "—"],
+    ["المهندس", engineer?.name ? "م. " + engineer.name : "—"],
+    ["سعر العمل", num(job.price)],
+    ["المقبوض", num(job.paid)],
+    [bal.label, num(Math.abs(bal.value))],
+    ["حق المهندس", num(job.engineer_fee)],
+    ["تكلفة المواد", num(job.materials_cost)],
+  ];
+  const note = jobNotes(job);
+  const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title>فاتورة — ${customer?.name || "عميل"}</title>
+<style>
+  body{font-family:Tahoma,Arial,sans-serif;color:#0f172a;margin:32px;background:#fff}
+  h1{margin:0 0 4px;font-size:22px} .sub{color:#64748b;margin:0 0 20px;font-size:13px}
+  .box{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:16px}
+  .row{display:flex;justify-content:space-between;gap:16px;padding:10px 14px;border-top:1px solid #e2e8f0;font-size:14px}
+  .row:first-child{border-top:0} .row span{color:#64748b} .row b{font-weight:700}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px}
+  .logo{font-size:13px;font-weight:700;color:#0f766e}
+  .note{margin-top:12px;padding:12px;background:#f8fafc;border-radius:10px;font-size:13px;white-space:pre-wrap}
+  @media print{body{margin:12px}}
+</style></head><body>
+  <div class="head"><div><div class="logo">مهندس المكيفات</div><h1>فاتورة عمل</h1><p class="sub">${customer?.name || "عميل"} · ${customer?.phone || ""}</p></div>
+  <div class="sub">${new Date().toLocaleString("ar-SA-u-nu-latn")}</div></div>
+  <div class="box">${rows.map(([k,v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join("")}</div>
+  ${customer?.address ? `<p class="sub">العنوان: ${customer.address}</p>` : ""}
+  ${note ? `<div class="note">${note.replace(/</g,"&lt;")}</div>` : ""}
+  <script>window.onload=()=>{window.print();}</script>
+</body></html>`;
+  const w = window.open("", "_blank", "noopener,noreferrer,width=720,height=900");
+  if (!w) return;
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
 function Kpi({ tone, icon, label, valueClass, children }) {
   return (
     <div className="kpi">
@@ -223,7 +287,7 @@ function Main() {
                 <Search size={16} />
                 <input placeholder="بحث باسم العميل أو جواله" value={q} onChange={(x) => setQ(x.target.value)} />
               </div>
-              <select value={f} onChange={(x) => setF(x.target.value)} aria-label="تصفية الحالة">
+              <select className="nice" value={f} onChange={(x) => setF(x.target.value)} aria-label="تصفية الحالة">
                 <option value="all">كل الحالات</option>{Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
               <button type="button" className="pri" onClick={() => setForm({ customer_id: "", service_type: "install", status: "new", units: 1, warranty_months: 12, job_date: today() })}><Plus size={17} /> عمل جديد</button>
@@ -238,23 +302,19 @@ function Main() {
                     <div className="jt"><b>{c?.name || "عميل محذوف"}</b><span>{c?.address || c?.phone || "بدون عنوان"}</span></div>
                     <StatusPick value={j.status} onChange={(status) => setStatus(j.id, status)} />
                   </div>
-                  <div className="spec">
-                    <div><small>نوع العمل</small><b>{SV[j.service_type]}</b></div>
+                  <div className="facts">
+                    <div><small>نوع العمل</small><b>{serviceName(j)}</b></div>
                     <div><small>الجهاز</small><b>{spec ? `${spec} × ${j.units}` : "—"}</b></div>
                     <div><small>التاريخ</small><b>{dt(j.job_date) || "بدون تاريخ"}</b></div>
                     <div><small>المهندس</small><b>{em[j.engineer_id]?.name || "بدون مهندس"}</b></div>
-                  </div>
-                  <div className="fig">
                     <div><small>السعر</small><b>{R(j.price)}</b></div>
                     <div><small>المقبوض</small><b>{R(j.paid)}</b></div>
                     <div className={custBal(j.remaining).kind}><small>{custBal(j.remaining).label}</small><b>{Sign(custBal(j.remaining).value)}</b></div>
-                  </div>
-                  <div className="fig slim">
                     <div><small>حق المهندس</small><b>{R(j.engineer_fee)}</b></div>
                     <div><small>تكلفة المواد</small><b>{R(j.materials_cost)}</b></div>
                     <div className={n(j.profit) < 0 ? "over" : "clear"}><small>صافي الربح</small><b>{R(j.profit)}</b></div>
                   </div>
-                  {j.notes && <div className="note"><small>ملاحظات</small><p>{j.notes}</p></div>}
+                  {jobNotes(j) && <div className="note"><small>ملاحظات</small><p>{jobNotes(j)}</p></div>}
                   {(o || j.warranty_until) && (
                     <p className="fine">
                       {o && <span>المركِّب الأصلي: {em[o.engineer_id]?.name || "—"} ({dt(o.job_date) || "بدون تاريخ"})</span>}
@@ -264,6 +324,7 @@ function Main() {
                   <div className="acts" onClick={(e) => e.stopPropagation()}>
                     {j.status !== "completed" && <button type="button" className="soft done" onClick={() => setStatus(j.id, "completed")}>مكتمل</button>}
                     <button type="button" className="soft" onClick={() => setAsk({ kind: "cust", job: j })}><Plus size={16} /> تسجيل دفعة</button>
+                    <button type="button" className="soft print" onClick={() => printInvoice(j, c, em[j.engineer_id])}><Printer size={16} /> طباعة الفاتورة</button>
                     <div className="ibs">
                       {c?.phone && <a className="ib call" title="اتصال" href={tel(c.phone)}><Phone size={17} /></a>}
                       {c?.phone && <a className="ib wa" title="واتساب العميل" href={wa(c.phone)} target="_blank" rel="noreferrer"><WaIcon /></a>}
@@ -310,7 +371,7 @@ function Main() {
                     <ul className="mini">
                       {cj.map((j) => (
                         <li key={j.id}>
-                          <span>{SV[j.service_type]} {j.brand || ""}</span>
+                          <span>{serviceName(j)} {j.brand || ""}</span>
                           <span className="sub" style={{ margin: 0 }}>{dt(j.job_date) || "—"} · م. {em[j.engineer_id]?.name || "—"}</span>
                           <span className={"tag " + j.status}>{ST[j.status]}</span>
                           {j.status !== "cancelled" && <b>{custBal(j.remaining).label} {Sign(custBal(j.remaining).value)}</b>}
@@ -356,7 +417,7 @@ function Main() {
                       {ej.map((j) => (
                         <li key={j.id}>
                           <span>{cm[j.customer_id]?.name || "—"}</span>
-                          <span className="sub" style={{ margin: 0 }}>{SV[j.service_type]} · {ST[j.status]} · {dt(j.job_date) || "بدون تاريخ"}</span>
+                          <span className="sub" style={{ margin: 0 }}>{serviceName(j)} · {ST[j.status]} · {dt(j.job_date) || "بدون تاريخ"}</span>
                           <b>{R(j.engineer_fee)}</b>
                         </li>
                       ))}
@@ -530,13 +591,14 @@ function StatusPick({ value, onChange }) {
 function JobDetail({ job, customer, engineer, originJob, engineers, receipts, onClose, onEdit, onPay, onStatus }) {
   const spec = [job.brand, job.ac_type].filter(Boolean).join(" ");
   const pays = [...receipts].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  const notes = jobNotes(job);
   return (
     <Overlay onClose={onClose} labelledBy="detail-title">
       <div className="sheet">
         <div className="mh">
           <div>
             <h3 id="detail-title">{customer?.name || "عمل"}</h3>
-            <p className="sub">{SV[job.service_type]}{spec ? " · " + spec : ""}{job.units ? " × " + job.units : ""}</p>
+            <p className="sub">{serviceName(job)}{spec ? " · " + spec : ""}{job.units ? " × " + job.units : ""}</p>
           </div>
           <button type="button" className="ib" onClick={onClose} aria-label="إغلاق"><X size={18} /></button>
         </div>
@@ -553,6 +615,7 @@ function JobDetail({ job, customer, engineer, originJob, engineers, receipts, on
             <div><dt>العميل</dt><dd>{customer?.name || "—"}</dd></div>
             <div><dt>الجوال</dt><dd>{customer?.phone || "—"}</dd></div>
             <div><dt>العنوان</dt><dd>{customer?.address || "—"}</dd></div>
+            <div><dt>نوع العمل</dt><dd>{serviceName(job)}</dd></div>
             <div><dt>المهندس</dt><dd>{engineer?.name ? "م. " + engineer.name : "بدون مهندس"}</dd></div>
             {engineer?.phone && <div><dt>جوال المهندس</dt><dd>{engineer.phone}</dd></div>}
             {originJob && <div><dt>التركيب الأصلي</dt><dd>{engineers[originJob.engineer_id]?.name || "—"} ({dt(originJob.job_date) || "بدون تاريخ"})</dd></div>}
@@ -563,7 +626,7 @@ function JobDetail({ job, customer, engineer, originJob, engineers, receipts, on
             <div><dt>تكلفة المواد</dt><dd>{R(job.materials_cost)}</dd></div>
             <div><dt>صافي الربح</dt><dd className={n(job.profit) < 0 ? "red" : "green"}>{R(job.profit)}</dd></div>
             {job.warranty_until && <div><dt>الضمان</dt><dd className={job.warranty_until < today() ? "red" : ""}>{job.warranty_until < today() ? "منتهي" : "ساري حتى " + dt(job.warranty_until)}</dd></div>}
-            {job.notes && <div><dt>ملاحظات</dt><dd>{job.notes}</dd></div>}
+            {notes && <div><dt>ملاحظات</dt><dd>{notes}</dd></div>}
           </dl>
           <div className="sec-label">الدفعات</div>
           {pays.length ? (
@@ -580,6 +643,7 @@ function JobDetail({ job, customer, engineer, originJob, engineers, receipts, on
         <div className="mf">
           {job.status !== "completed" && <button type="button" className="pri" onClick={() => onStatus("completed")}>مكتمل</button>}
           <button type="button" className="pri" onClick={onPay}>تسجيل دفعة</button>
+          <button type="button" className="soft print" onClick={() => printInvoice(job, customer, engineer)}><Printer size={16} /> طباعة الفاتورة</button>
           <button type="button" onClick={onEdit}>تعديل</button>
         </div>
       </div>
@@ -592,7 +656,7 @@ function CatalogSelect({ label, value, onChange, rows }) {
   const extra = value && !names.includes(value) ? [value] : [];
   return (
     <F l={label}>
-      <select value={value} onChange={onChange}>
+      <select className="nice" value={value} onChange={onChange}>
         <option value="">—</option>
         {extra.map((name) => <option key={name} value={name}>{name}</option>)}
         {names.map((name) => <option key={name} value={name}>{name}</option>)}
@@ -602,12 +666,20 @@ function CatalogSelect({ label, value, onChange, rows }) {
 }
 
 function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
-  const [v, setV] = useState(init);
+  const parsed = parseNotes(init?.notes);
+  const [v, setV] = useState({ ...init, notes: parsed.notes, other_label: init?.other_label ?? parsed.otherLabel });
   const g = (k) => v[k] ?? "";
   const set = (k) => (e) => setV({ ...v, [k]: e.target.value });
+  const setService = (e) => {
+    const service_type = e.target.value;
+    setV({ ...v, service_type, other_label: service_type === "other" ? (v.other_label || "") : "" });
+  };
   const inst = d.j.filter((x) => x.customer_id === v.customer_id && x.service_type === "install" && x.id !== v.id);
   const save = async (ev) => {
     ev.preventDefault();
+    if (v.service_type === "other" && !String(v.other_label || "").trim()) {
+      return onError("اكتب نوع العمل عند اختيار أخرى");
+    }
     let cid = v.customer_id;
     if (cid === "new") {
       const r = await sb.from("customers").insert({ name: v.nm, phone: v.ph || null, address: v.ad || null, map_url: v.mp || null }).select().single();
@@ -619,7 +691,8 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
       related_job_id: v.service_type === "maintenance" && v.related_job_id ? v.related_job_id : null,
       service_type: v.service_type, status: v.status, brand: v.brand || null, ac_type: v.ac_type || null,
       units: n(v.units) || 1, job_date: v.job_date || null, price: n(v.price), engineer_fee: n(v.engineer_fee),
-      materials_cost: n(v.materials_cost), warranty_months: n(v.warranty_months), notes: v.notes || null,
+      materials_cost: n(v.materials_cost), warranty_months: n(v.warranty_months),
+      notes: packNotes(v.service_type, v.other_label, v.notes),
     };
     const r = v.id ? await sb.from("jobs").update(row).eq("id", v.id).select().single()
                    : await sb.from("jobs").insert(row).select().single();
@@ -642,7 +715,7 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
         </div>
         <div className="body">
           <div className="sec-label">العميل</div>
-          <F l="العميل"><select required value={g("customer_id")} onChange={set("customer_id")}>
+          <F l="العميل"><select className="nice" required value={g("customer_id")} onChange={set("customer_id")}>
             <option value="" disabled>اختر العميل</option><option value="new">+ عميل جديد</option>
             {d.c.map((c) => <option key={c.id} value={c.id}>{c.name} {c.phone || ""}</option>)}
           </select></F>
@@ -653,10 +726,13 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
             <F l="رابط الموقع"><input value={g("mp")} onChange={set("mp")} placeholder="https://" /></F>
           </div>}
           <div className="sec-label">تفاصيل الخدمة</div>
-          <div className="two">
-            <F l="الخدمة"><select value={g("service_type")} onChange={set("service_type")}>{Object.entries(SV).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></F>
-            <F l="الحالة"><select value={g("status")} onChange={set("status")}>{Object.entries(ST).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></F>
-            <F l="المهندس المنفّذ"><select value={g("engineer_id")} onChange={set("engineer_id")}><option value="">بدون مهندس</option>{d.e.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></F>
+          <div className="two equal">
+            <F l="الخدمة"><select className="nice" value={g("service_type")} onChange={setService}>{Object.entries(SV).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></F>
+            <F l="الحالة"><select className="nice" value={g("status")} onChange={set("status")}>{Object.entries(ST).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></F>
+            {v.service_type === "other" && (
+              <F l="نوع العمل (أخرى)"><input required value={g("other_label")} onChange={set("other_label")} placeholder="مثال: فحص كهرباء / استشارة" /></F>
+            )}
+            <F l="المهندس المنفّذ"><select className="nice" value={g("engineer_id")} onChange={set("engineer_id")}><option value="">بدون مهندس</option>{d.e.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></F>
             <F l="التاريخ"><input type="date" value={g("job_date")} onChange={set("job_date")} /></F>
             <CatalogSelect label="الشركة" value={g("brand")} onChange={set("brand")} rows={brands} />
             <CatalogSelect label="النوع" value={g("ac_type")} onChange={set("ac_type")} rows={types} />
@@ -664,10 +740,10 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
             <F l="الضمان (شهر)"><input type="number" min="0" value={g("warranty_months")} onChange={set("warranty_months")} /></F>
           </div>
           {v.service_type === "maintenance" && inst.length > 0 &&
-            <F l="التركيب الأصلي"><select value={g("related_job_id")} onChange={set("related_job_id")}><option value="">تلقائي</option>
+            <F l="التركيب الأصلي"><select className="nice" value={g("related_job_id")} onChange={set("related_job_id")}><option value="">تلقائي</option>
               {inst.map((x) => <option key={x.id} value={x.id}>{x.job_date} — م. {em[x.engineer_id]?.name || "—"}</option>)}</select></F>}
           <div className="sec-label">المبالغ</div>
-          <div className="two">
+          <div className="two equal">
             <F l="سعر العميل"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("price")} onChange={set("price")} /></F>
             <F l="حق المهندس"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("engineer_fee")} onChange={set("engineer_fee")} /></F>
             <F l="تكلفة المواد"><input type="number" inputMode="decimal" step="0.01" min="0" value={g("materials_cost")} onChange={set("materials_cost")} /></F>
