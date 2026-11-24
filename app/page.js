@@ -91,87 +91,77 @@ function invoiceMarkup(job, customer, engineer) {
   const bal = custBal(job.remaining);
   const spec = [job.brand, job.ac_type].filter(Boolean).join(" ");
   const note = jobNotes(job);
+  const materials = n(job.materials_cost);
+  const issued = new Date().toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { day: "numeric", month: "long", year: "numeric" });
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const cell = (label, value) => `
-    <div style="background:#fff;border:1px solid #e8eef5;border-radius:14px;padding:14px 16px;min-width:0">
-      <div style="color:#64748b;font-size:12px;font-weight:700;margin-bottom:6px">${esc(label)}</div>
-      <div style="color:#0f172a;font-size:15px;font-weight:700;line-height:1.45">${esc(value)}</div>
-    </div>`;
-  const money = (label, value, tone = "") => {
-    const bg = tone === "ok" ? "#ecfdf5" : tone === "bad" ? "#fff1f2" : "#f8fafc";
-    const bd = tone === "ok" ? "#a7f3d0" : tone === "bad" ? "#fecdd3" : "#e8eef5";
-    const fg = tone === "ok" ? "#047857" : tone === "bad" ? "#be123c" : "#0f172a";
-    return `
-    <div style="background:${bg};border:1px solid ${bd};border-radius:14px;padding:14px 16px;min-width:0">
-      <div style="color:#64748b;font-size:12px;font-weight:700;margin-bottom:6px">${esc(label)}</div>
-      <div style="color:${fg};font-size:18px;font-weight:800;direction:ltr;text-align:right">${esc(value)} <span style="font-size:12px;font-weight:700">ر.س</span></div>
-    </div>`;
-  };
+  const row = (label, value) => `
+    <tr>
+      <td style="padding:12px 14px;border-bottom:1px solid #e8eef5;color:#64748b;font-size:13px;font-weight:700;width:38%">${esc(label)}</td>
+      <td style="padding:12px 14px;border-bottom:1px solid #e8eef5;color:#0f172a;font-size:14px;font-weight:700">${esc(value)}</td>
+    </tr>`;
   return `
-  <div style="width:794px;box-sizing:border-box;background:#f4f7fb;color:#0f172a;font-family:Tahoma,'Segoe UI',Arial,sans-serif;direction:rtl;text-align:right">
-    <div style="background:linear-gradient(135deg,#0f766e 0%,#115e59 55%,#0e1525 100%);color:#fff;padding:28px 36px 30px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:18px">
-        <div>
-          <div style="font-size:13px;opacity:.85;margin-bottom:8px">فاتورة خدمة</div>
-          <div style="font-size:30px;font-weight:800;letter-spacing:-.02em;margin:0">${esc(BRAND)}</div>
-          <div style="margin-top:8px;font-size:13px;opacity:.9">${esc(BRAND_SUB)}</div>
-        </div>
-        <div style="text-align:left;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:12px 14px;min-width:160px">
-          <div style="display:inline-block;background:#fff;color:#0f766e;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:800;margin-bottom:10px">PDF</div>
-          <div style="font-size:12px;opacity:.9;line-height:1.7">
-            <div>${esc(new Date().toLocaleDateString("ar-SA-u-nu-latn"))}</div>
-            <div>مرجع: ${esc(String(job.id || "").slice(0, 8) || "—")}</div>
-            <div>${esc(ST[job.status] || "")}</div>
-          </div>
-        </div>
-      </div>
+  <div style="width:794px;box-sizing:border-box;background:#ffffff;color:#0f172a;font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right;letter-spacing:normal">
+    <div style="background:#0f766e;color:#ffffff;padding:26px 32px">
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="vertical-align:top;text-align:right">
+            <div style="font-size:12px;margin-bottom:8px">فاتورة للعميل</div>
+            <div style="font-size:26px;font-weight:700;line-height:1.4">${esc(BRAND)}</div>
+            <div style="font-size:13px;margin-top:6px;line-height:1.5">${esc(BRAND_SUB)}</div>
+          </td>
+          <td style="vertical-align:top;text-align:left;width:190px">
+            <div style="background:#115e59;border-radius:12px;padding:12px 14px">
+              <div style="display:inline-block;background:#ffffff;color:#0f766e;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;margin-bottom:8px">PDF</div>
+              <div style="font-size:12px;line-height:1.8">
+                <div>${esc(issued)}</div>
+                <div>مرجع: ${esc(String(job.id || "").slice(0, 8) || "—")}</div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
     </div>
 
-    <div style="padding:24px 28px 10px">
-      <div style="background:#fff;border:1px solid #e8eef5;border-radius:18px;padding:18px 18px 8px;margin-bottom:14px;box-shadow:0 8px 24px rgba(15,23,42,.04)">
-        <div style="font-size:12px;font-weight:800;color:#0f766e;margin-bottom:12px">بيانات العميل</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          ${cell("العميل", customer?.name || "—")}
-          ${cell("الجوال", customer?.phone || "—")}
-          ${cell("العنوان", customer?.address || "—")}
-          ${cell("تاريخ العمل", dt(job.job_date) || "—")}
-        </div>
+    <div style="padding:24px 28px 8px">
+      <div style="font-size:13px;font-weight:700;color:#0f766e;margin:0 0 10px">بيانات العميل والعمل</div>
+      <table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e8eef5;border-radius:12px;overflow:hidden">
+        ${row("العميل", customer?.name || "—")}
+        ${row("الجوال", customer?.phone || "—")}
+        ${row("العنوان", customer?.address || "—")}
+        ${row("نوع العمل", serviceName(job))}
+        ${row("الجهاز", spec ? `${spec} × ${job.units || 1}` : "—")}
+        ${row("تاريخ العمل", dt(job.job_date) || "—")}
+        ${row("المهندس المنفّذ", engineer?.name ? "م. " + engineer.name : "بدون مهندس")}
+        ${row("الحالة", ST[job.status] || "—")}
+      </table>
+
+      <div style="font-size:13px;font-weight:700;color:#0f766e;margin:20px 0 10px">المبالغ</div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e8eef5;border-radius:12px;overflow:hidden">
+        ${row("المبلغ الإجمالي", num(job.price) + " ر.س")}
+        ${row("المقبوض", num(job.paid) + " ر.س")}
+        ${row(bal.label, num(Math.abs(bal.value)) + " ر.س")}
+        ${materials > 0 ? row("تكلفة المواد", num(materials) + " ر.س") : ""}
+      </table>
+
+      <div style="margin-top:14px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div style="font-size:13px;font-weight:700;color:#047857">المبلغ المستحق على الفاتورة</div>
+        <div style="font-size:22px;font-weight:700;color:#047857;direction:ltr">${esc(num(job.price))} ر.س</div>
       </div>
 
-      <div style="background:#fff;border:1px solid #e8eef5;border-radius:18px;padding:18px 18px 8px;margin-bottom:14px;box-shadow:0 8px 24px rgba(15,23,42,.04)">
-        <div style="font-size:12px;font-weight:800;color:#0f766e;margin-bottom:12px">تفاصيل الخدمة</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          ${cell("نوع العمل", serviceName(job))}
-          ${cell("الجهاز", spec ? `${spec} × ${job.units || 1}` : "—")}
-          ${cell("المهندس المنفّذ", engineer?.name ? "م. " + engineer.name : "بدون مهندس")}
-          ${cell("الحالة", ST[job.status] || "—")}
-        </div>
-      </div>
+      ${note ? `<div style="margin-top:14px;background:#f8fafc;border:1px solid #e8eef5;border-right:4px solid #0f766e;border-radius:12px;padding:14px 16px"><div style="font-size:12px;font-weight:700;color:#0f766e;margin-bottom:6px">ملاحظات</div><div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${esc(note)}</div></div>` : ""}
 
-      <div style="background:#fff;border:1px solid #e8eef5;border-radius:18px;padding:18px 18px 8px;margin-bottom:14px;box-shadow:0 8px 24px rgba(15,23,42,.04)">
-        <div style="font-size:12px;font-weight:800;color:#0f766e;margin-bottom:12px">الملخص المالي</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-          ${money("سعر العمل", num(job.price))}
-          ${money("المقبوض", num(job.paid))}
-          ${money(bal.label, num(Math.abs(bal.value)), bal.kind === "over" ? "bad" : bal.kind === "clear" ? "ok" : "")}
-          ${money("حق المهندس", num(job.engineer_fee))}
-          ${money("تكلفة المواد", num(job.materials_cost))}
-          ${money("صافي الربح", num(job.profit), n(job.profit) < 0 ? "bad" : "ok")}
-        </div>
-      </div>
-
-      ${note ? `<div style="background:#fff;border:1px solid #e8eef5;border-right:4px solid #0f766e;border-radius:16px;padding:14px 16px;margin-bottom:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;box-shadow:0 8px 24px rgba(15,23,42,.04)"><div style="font-size:12px;font-weight:800;color:#0f766e;margin-bottom:6px">ملاحظات</div>${esc(note)}</div>` : ""}
-
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding:8px 4px 18px">
-        <div style="color:#64748b;font-size:12px;line-height:1.7">
-          <div>شكرًا لتعاملكم معنا</div>
-          <div style="margin-top:4px;font-weight:700;color:#0f766e">${esc(BRAND)}</div>
-        </div>
-        <div style="min-width:180px;text-align:center">
-          <div style="height:48px;border-bottom:1px dashed #cbd5e1;margin-bottom:8px"></div>
-          <div style="font-size:11px;color:#94a3b8">التوقيع / الختم</div>
-        </div>
-      </div>
+      <table style="width:100%;margin-top:28px;border-collapse:collapse">
+        <tr>
+          <td style="vertical-align:bottom;text-align:right;color:#64748b;font-size:12px;line-height:1.7">
+            <div>شكرًا لتعاملكم معنا</div>
+            <div style="margin-top:4px;font-weight:700;color:#0f766e">${esc(BRAND)}</div>
+          </td>
+          <td style="vertical-align:bottom;text-align:center;width:200px">
+            <div style="height:46px;border-bottom:1px dashed #cbd5e1;margin-bottom:8px"></div>
+            <div style="font-size:11px;color:#94a3b8">التوقيع / الختم</div>
+          </td>
+        </tr>
+      </table>
     </div>
   </div>`;
 }
@@ -186,7 +176,19 @@ async function downloadInvoicePdf(job, customer, engineer) {
       import("jspdf"),
     ]);
     const target = host.firstElementChild;
-    const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      letterRendering: true,
+      onclone: (_doc, node) => {
+        node.style.letterSpacing = "normal";
+        node.querySelectorAll("*").forEach((el) => {
+          el.style.letterSpacing = "normal";
+          el.style.webkitFontSmoothing = "antialiased";
+        });
+      },
+    });
     const img = canvas.toDataURL("image/png");
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageW = pdf.internal.pageSize.getWidth();
