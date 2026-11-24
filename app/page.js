@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { supabase as sb } from "../lib/supabase";
+import { sb, isOfflineApp } from "../lib/api";
 import { RiyalIcon } from "riyal/react";
 import {
   Wrench, Users, UserCog, Wallet, Phone, MapPin, Plus, Pencil, Trash2,
@@ -34,6 +34,7 @@ const serviceName = (j) => {
   return SV[j.service_type] || j.service_type || "—";
 };
 const jobNotes = (j) => parseNotes(j?.notes).notes;
+const custAddr = (c) => [c?.district, c?.address].filter(Boolean).join(" · ");
 const ST = { new: "جديد", scheduled: "مجدول", in_progress: "قيد التنفيذ", completed: "مكتمل", cancelled: "ملغي", postponed: "مؤجل" };
 const n = (v) => Number(v || 0);
 const num = (v) => n(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -128,6 +129,7 @@ function invoiceMarkup(job, customer, engineer) {
       <table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e8eef5;border-radius:12px;overflow:hidden">
         ${row("العميل", customer?.name || "—")}
         ${row("الجوال", customer?.phone || "—")}
+        ${row("الحي", customer?.district || "—")}
         ${row("العنوان", customer?.address || "—")}
         ${row("نوع العمل", serviceName(job))}
         ${row("الجهاز", spec ? `${spec} × ${job.units || 1}` : "—")}
@@ -315,6 +317,7 @@ function Boot() {
 }
 
 function Login() {
+  const offline = isOfflineApp();
   const [e, setE] = useState(""), [p, setP] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
   const go = async (ev) => {
     ev.preventDefault();
@@ -337,7 +340,11 @@ function Login() {
         <F l="كلمة المرور"><input type="password" autoComplete="current-password" required value={p} onChange={(x) => setP(x.target.value)} placeholder="••••••••" /></F>
         {err && <p className="alert">{err}</p>}
         <button className="pri wide" disabled={busy}>{busy ? "جارٍ الدخول..." : "دخول"}</button>
-        <p className="login-note">الدخول لصاحب العمل فقط</p>
+        <p className="login-note">
+          {offline
+            ? "وضع بدون نت — البيانات على الجهاز فقط ولا تتزامن مع الموقع"
+            : "نفس حساب الموقع وتطبيق الويندوز — البيانات تتزامن تلقائيًا"}
+        </p>
       </form>
     </div>
   );
@@ -461,7 +468,7 @@ function Main() {
                 <article className="job" key={j.id} onClick={() => setDetail(j.id)}>
                   <div className="jh">
                     <div className="av">{(c?.name || "؟").trim().charAt(0)}</div>
-                    <div className="jt"><b>{c?.name || "عميل محذوف"}</b><span>{c?.address || c?.phone || "بدون عنوان"}</span></div>
+                    <div className="jt"><b>{c?.name || "عميل محذوف"}</b><span>{custAddr(c) || c?.phone || "بدون عنوان"}</span></div>
                     <StatusPick value={j.status} onChange={(status) => setStatus(j.id, status)} />
                   </div>
                   <div className="facts">
@@ -509,7 +516,7 @@ function Main() {
 
           {tab === "customers" && <>
             <div className="ph"><div><h1>العملاء</h1><p>{d.c.length ? `${d.c.length} عميل` : "أضف العملاء لربط الأعمال بهم"}</p></div>{nowLabel && <span className="today">{nowLabel}</span>}</div>
-            <NewBox title="عميل" fields={[["name", "الاسم", 1], ["phone", "الجوال", 0, "tel"], ["address", "العنوان"], ["map_url", "رابط الموقع"]]} onAdd={(v) => run(sb.from("customers").insert(v))} />
+            <NewBox title="عميل" fields={[["name", "الاسم", 1], ["phone", "الجوال", 0, "tel"], ["district", "الحي"], ["address", "العنوان"], ["map_url", "رابط الموقع"]]} onAdd={(v) => run(sb.from("customers").insert(v))} />
             {d.c.map((c) => {
               const cj = d.j.filter((j) => j.customer_id === c.id);
               const open = cj.filter((j) => j.status !== "cancelled");
@@ -520,7 +527,7 @@ function Main() {
                   <div className="row">
                     <div className="who">
                       <div className="av">{(c.name || "؟").trim().charAt(0)}</div>
-                      <div className="jt"><b>{c.name}</b><span>{[c.phone, c.address].filter(Boolean).join(" · ") || "بدون بيانات تواصل"}</span></div>
+                      <div className="jt"><b>{c.name}</b><span>{[c.phone, custAddr(c)].filter(Boolean).join(" · ") || "بدون بيانات تواصل"}</span></div>
                     </div>
                     {(debt > 0 || credit > 0) && (
                       <div className="badges">
@@ -776,6 +783,7 @@ function JobDetail({ job, customer, engineer, originJob, engineers, receipts, on
           <dl className="kv">
             <div><dt>العميل</dt><dd>{customer?.name || "—"}</dd></div>
             <div><dt>الجوال</dt><dd>{customer?.phone || "—"}</dd></div>
+            <div><dt>الحي</dt><dd>{customer?.district || "—"}</dd></div>
             <div><dt>العنوان</dt><dd>{customer?.address || "—"}</dd></div>
             <div><dt>نوع العمل</dt><dd>{serviceName(job)}</dd></div>
             <div><dt>المهندس</dt><dd className={engineer?.name ? "" : "muted-val"}>{engineer?.name ? "م. " + engineer.name : "بدون مهندس"}</dd></div>
@@ -845,7 +853,13 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
     }
     let cid = v.customer_id;
     if (cid === "new") {
-      const r = await sb.from("customers").insert({ name: v.nm, phone: v.ph || null, address: v.ad || null, map_url: v.mp || null }).select().single();
+      const r = await sb.from("customers").insert({
+        name: v.nm,
+        phone: v.ph || null,
+        district: v.di || null,
+        address: v.ad || null,
+        map_url: v.mp || null,
+      }).select().single();
       if (r.error) return onError(r.error.message);
       cid = r.data.id;
     }
@@ -893,7 +907,8 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
           {v.customer_id === "new" && <div className="two">
             <F l="اسم العميل"><input required value={g("nm")} onChange={set("nm")} /></F>
             <F l="الجوال"><input inputMode="tel" value={g("ph")} onChange={set("ph")} /></F>
-            <F l="العنوان"><input value={g("ad")} onChange={set("ad")} /></F>
+            <F l="الحي"><input value={g("di")} onChange={set("di")} placeholder="مثال: البوادي" /></F>
+            <F l="العنوان"><input value={g("ad")} onChange={set("ad")} placeholder="الشارع / المبنى / تفصيل إضافي" /></F>
             <F l="رابط الموقع"><input value={g("mp")} onChange={set("mp")} placeholder="https://" /></F>
           </div>}
           <div className="sec-label">تفاصيل الخدمة</div>

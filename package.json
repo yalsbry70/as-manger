@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "build:mobile": "cross-env NEXT_PUBLIC_MOBILE=1 next build",
+    "build:offline": "cross-env NEXT_PUBLIC_MOBILE=1 NEXT_PUBLIC_OFFLINE=1 next build",
+    "android:sync": "npm run build:mobile && node scripts/copy-mobile-www.js && npm --prefix mobile run sync",
+    "android:apk": "npm run android:sync && npm --prefix mobile run apk"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
@@ -16,5 +20,8 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "riyal": "^1.2.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
   }
 }
