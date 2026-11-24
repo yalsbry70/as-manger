@@ -23,7 +23,7 @@ function createWindow() {
     height: 840,
     minWidth: 900,
     minHeight: 600,
-    title: "مهندس المكيفات",
+    title: "المهندس رشاد سعيد",
     backgroundColor: "#0e1525",
     autoHideMenuBar: true,
     ...(icon ? { icon } : {}),
