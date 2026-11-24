@@ -1,0 +1,20 @@
+{
+  "name": "ac-manager-android",
+  "version": "1.2.0",
+  "description": "المهندس رشاد سعيد - تطبيق أندرويد",
+  "private": true,
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open": "npx cap open android",
+    "icons": "npx capacitor-assets generate --android",
+    "apk": "node build-apk.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.4.3"
+  }
+}

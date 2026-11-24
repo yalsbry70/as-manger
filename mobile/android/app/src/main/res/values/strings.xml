@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">المهندس رشاد سعيد</string>
+    <string name="title_activity_main">المهندس رشاد سعيد</string>
+    <string name="package_name">com.acmanager.app</string>
+    <string name="custom_url_scheme">com.acmanager.app</string>
+</resources>

@@ -1,0 +1,9 @@
+{
+  "appId": "com.acmanager.app",
+  "appName": "AC Manager",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0e1525"
+  }
+}
