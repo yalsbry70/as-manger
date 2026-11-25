@@ -35,7 +35,9 @@ const serviceName = (j) => {
 };
 const jobNotes = (j) => parseNotes(j?.notes).notes;
 const custAddr = (c) => [c?.district, c?.address].filter(Boolean).join(" · ");
-const ST = { new: "جديد", scheduled: "مجدول", in_progress: "قيد التنفيذ", completed: "مكتمل", cancelled: "ملغي", postponed: "مؤجل" };
+const ST = { in_progress: "قيد التنفيذ", completed: "مكتمل", cancelled: "ملغي", postponed: "مؤجل" };
+const ST_LEGACY = { new: "جديد", scheduled: "مجدول" };
+const statusLabel = (s) => ST[s] || ST_LEGACY[s] || s || "—";
 const n = (v) => Number(v || 0);
 const num = (v) => n(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
 const R = (v) => <span className={"money" + (n(v) < 0 ? " neg" : "")}><RiyalIcon width={14} height={14} aria-label="ريال سعودي" title="ريال سعودي" />{num(v)}</span>;
@@ -208,7 +210,7 @@ function invoiceMarkup(job, customer, engineer) {
         ${row("الجهاز", text(spec ? `${spec} × ${job.units || 1}` : "—"))}
         ${row("تاريخ العمل", text(dt(job.job_date) || "—"))}
         ${row("المهندس المنفّذ", text(engineer?.name ? "م. " + engineer.name : "بدون مهندس"))}
-        ${row("الحالة", text(ST[job.status] || "—"))}
+        ${row("الحالة", text(statusLabel(job.status)))}
       </table>
 
       <div style="font-size:13px;font-weight:700;color:#0f766e;margin:20px 0 10px">المبالغ</div>
@@ -427,6 +429,7 @@ function Main() {
   const [tab, setTab] = useState("jobs");
   const [menuOpen, setMenuOpen] = useState(false);
   const [addCustomer, setAddCustomer] = useState(false);
+  const [addEngineer, setAddEngineer] = useState(false);
   const [d, setD] = useState({ c: [], e: [], j: [], pays: [], receipts: [], brands: [], types: [] });
   const [f, setF] = useState("all"), [q, setQ] = useState(""), [form, setForm] = useState(null);
   const [ask, setAsk] = useState(null);
@@ -485,7 +488,7 @@ function Main() {
     const balance = Math.round((earned - paid) * 100) / 100;
     return { engineer_id: e.id, name: e.name, earned, paid, balance, jobs };
   });
-  const openN = d.j.filter((j) => ["new", "scheduled", "in_progress"].includes(j.status)).length;
+  const openN = d.j.filter((j) => ["in_progress", "postponed"].includes(j.status) || j.status === "new" || j.status === "scheduled").length;
   const months = {};
   live.forEach((j) => { const m = (j.job_date || "").slice(0, 7) || "—"; (months[m] ||= []).push(j); });
   const nav = [
@@ -544,7 +547,7 @@ function Main() {
                 onChange={(x) => setF(x.target.value)}
                 options={[{ value: "all", label: "كل الحالات" }, ...Object.entries(ST).map(([k, v]) => ({ value: k, label: v }))]}
               />
-              <button type="button" className="pri" onClick={() => setForm({ customer_id: "", service_type: "install", status: "new", units: 1, warranty_months: 12, job_date: today() })}><Plus size={17} /> عمل جديد</button>
+              <button type="button" className="pri" onClick={() => setForm({ customer_id: "", service_type: "install", status: "in_progress", units: 1, warranty_months: 12, job_date: today() })}><Plus size={17} /> عمل جديد</button>
             </div>
             {jobs.map((j) => {
               const c = cm[j.customer_id], o = origin(j);
@@ -691,18 +694,18 @@ function Main() {
                               onKeyDown={(e) => { if (e.key === "Enter") setDetail(j.id); }}
                               tabIndex={0}
                             >
-                              <div className="visit-cell" data-label="التاريخ">
+                              <div className="visit-cell visit-date" data-label="التاريخ">
                                 <b>{dt(j.job_date) || "بدون تاريخ"}</b>
                               </div>
-                              <div className="visit-cell" data-label="نوع العمل">
+                              <div className="visit-cell visit-work" data-label="نوع العمل">
                                 <b>{serviceName(j)}</b>
                                 {device ? <small>{device}{j.units ? ` × ${j.units}` : ""}</small> : null}
                               </div>
-                              <div className={"visit-cell" + (!j.engineer_id ? " dim" : "")} data-label="المهندس">
+                              <div className={"visit-cell visit-eng" + (!j.engineer_id ? " dim" : "")} data-label="المهندس">
                                 <b>{engName}</b>
                               </div>
-                              <div className="visit-cell" data-label="الحالة">
-                                <span className={"tag " + j.status}>{ST[j.status]}</span>
+                              <div className="visit-cell visit-status" data-label="الحالة">
+                                <span className={"tag " + j.status}>{statusLabel(j.status)}</span>
                               </div>
                               <div className="visit-cell visit-bal" data-label="الحساب">
                                 {j.status === "cancelled" ? <span className="muted-val">—</span> : (
@@ -743,12 +746,13 @@ function Main() {
           {tab === "profile" && <ProfilePanel onToast={setToast} />}
 
           {tab === "engineers" && <>
-            <div className="ph"><div><h1>المهندسون</h1><p>أجر كل عمل مسند يُخصم فورًا من مديونية المهندس</p></div>{nowLabel && <span className="today">{nowLabel}</span>}</div>
-            <NewBox title="مهندس" fields={[["name", "الاسم", 1], ["phone", "الجوال", 0, "sa-phone"]]} onAdd={(v) => {
-              if (v.phone && !isSaPhone(v.phone)) { setToast("أدخل رقم جوال سعودي صحيح يبدأ بـ 5"); return false; }
-              const row = { ...v, phone: v.phone ? toSaPhone(v.phone) : null };
-              return run(sb.from("engineers").insert(row));
-            }} />
+            <div className="ph">
+              <div>
+                <h1>المهندسون</h1>
+                <p>أجر كل عمل مسند يُخصم فورًا من مديونية المهندس</p>
+              </div>
+              <button type="button" className="pri" onClick={() => setAddEngineer(true)}><Plus size={17} /> إضافة مهندس</button>
+            </div>
             {books.map((b) => {
               const ej = b.jobs;
               const eng = em[b.engineer_id];
@@ -771,7 +775,7 @@ function Main() {
                       {ej.map((j) => (
                         <li key={j.id}>
                           <span>{cm[j.customer_id]?.name || "—"}</span>
-                          <span className="sub" style={{ margin: 0 }}>{serviceName(j)} · {ST[j.status]} · {dt(j.job_date) || "بدون تاريخ"}</span>
+                          <span className="sub" style={{ margin: 0 }}>{serviceName(j)} · {statusLabel(j.status)} · {dt(j.job_date) || "بدون تاريخ"}</span>
                           <b>{R(j.engineer_fee)}</b>
                         </li>
                       ))}
@@ -786,7 +790,21 @@ function Main() {
                 </article>
               );
             })}
-            {!books.length && <div className="empty"><div className="empty-ico"><UserCog size={22} /></div><b>لا يوجد مهندسون</b><p>أضف المهندسين المنفّذين ليظهر حساب كل واحد.</p></div>}
+            {!books.length && (
+              <div className="empty">
+                <div className="empty-ico"><UserCog size={22} /></div>
+                <b>لا يوجد مهندسون</b>
+                <p>أضف المهندسين المنفّذين ليظهر حساب كل واحد.</p>
+                <button type="button" className="pri" onClick={() => setAddEngineer(true)}><Plus size={16} /> إضافة مهندس</button>
+              </div>
+            )}
+            {addEngineer && (
+              <EngineerForm
+                onClose={() => setAddEngineer(false)}
+                onSaved={() => { setAddEngineer(false); load(); }}
+                onError={setToast}
+              />
+            )}
           </>}
 
           {tab === "acc" && <>
@@ -954,6 +972,45 @@ function CustomerForm({ onClose, onSaved, onError }) {
   );
 }
 
+function EngineerForm({ onClose, onSaved, onError }) {
+  const [v, setV] = useState({ name: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  const save = async (e) => {
+    e.preventDefault();
+    if (v.phone && !isSaPhone(v.phone)) return onError("أدخل رقم جوال سعودي صحيح يبدأ بـ 5");
+    setBusy(true);
+    const row = {
+      name: v.name.trim(),
+      phone: v.phone ? toSaPhone(v.phone) : null,
+    };
+    const { error } = await sb.from("engineers").insert(row);
+    setBusy(false);
+    if (error) return onError(error.message);
+    onSaved();
+  };
+  return (
+    <Overlay onClose={onClose} labelledBy="eng-add-title">
+      <form className="sheet sm" onSubmit={save}>
+        <div className="mh">
+          <div>
+            <h3 id="eng-add-title">إضافة مهندس</h3>
+            <p className="sub">الاسم مطلوب، والجوال سعودي إن وُجد.</p>
+          </div>
+          <button type="button" className="ib" onClick={onClose} aria-label="إغلاق"><X size={18} /></button>
+        </div>
+        <div className="body">
+          <F l="الاسم"><input required value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></F>
+          <F l="الجوال"><SaudiPhone value={v.phone} onChange={(phone) => setV({ ...v, phone })} /></F>
+        </div>
+        <div className="mf">
+          <button className="pri" disabled={busy}>{busy ? "جارٍ الحفظ..." : "حفظ المهندس"}</button>
+          <button type="button" onClick={onClose}>إلغاء</button>
+        </div>
+      </form>
+    </Overlay>
+  );
+}
+
 function ProfilePanel({ onToast }) {
   const offline = isOfflineApp();
   const [email, setEmail] = useState("");
@@ -1068,9 +1125,10 @@ function Confirm({ title, text, ok, onClose, onOk }) {
 }
 
 function StatusPick({ value, onChange }) {
+  const legacy = ST_LEGACY[value] ? [[value, ST_LEGACY[value]]] : [];
   return (
     <select className={"tag pick " + value} value={value} aria-label="حالة العمل" onClick={(e) => e.stopPropagation()} onChange={(e) => onChange(e.target.value)}>
-      {Object.entries(ST).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+      {[...legacy, ...Object.entries(ST)].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
     </select>
   );
 }

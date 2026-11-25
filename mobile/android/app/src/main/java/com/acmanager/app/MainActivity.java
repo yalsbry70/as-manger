@@ -4,14 +4,10 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.view.View;
 import android.view.Window;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
@@ -22,24 +18,15 @@ public class MainActivity extends BridgeActivity {
     super.onCreate(savedInstanceState);
 
     Window window = getWindow();
-    WindowCompat.setDecorFitsSystemWindows(window, true);
-    window.setStatusBarColor(Color.parseColor("#0e1525"));
-    window.setNavigationBarColor(Color.parseColor("#0e1525"));
+    WindowCompat.setDecorFitsSystemWindows(window, false);
+    window.setStatusBarColor(Color.TRANSPARENT);
+    window.setNavigationBarColor(Color.TRANSPARENT);
 
     WindowInsetsControllerCompat controller =
         WindowCompat.getInsetsController(window, window.getDecorView());
     if (controller != null) {
-      controller.setAppearanceLightStatusBars(false);
-      controller.setAppearanceLightNavigationBars(false);
-    }
-
-    View content = findViewById(android.R.id.content);
-    if (content != null) {
-      ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
-        Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-        v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-        return insets;
-      });
+      controller.setAppearanceLightStatusBars(true);
+      controller.setAppearanceLightNavigationBars(true);
     }
 
     if (getBridge() != null && getBridge().getWebView() != null) {
