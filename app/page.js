@@ -244,10 +244,10 @@ function invoiceMarkup(job, customer, engineer) {
     </div>
   </div>`;
 }
-async function downloadInvoicePdf(job, customer, engineer) {
+async function htmlToPdf(html, filename) {
   const host = document.createElement("div");
   host.style.cssText = "position:fixed;left:-10000px;top:0;pointer-events:none;opacity:1";
-  host.innerHTML = invoiceMarkup(job, customer, engineer);
+  host.innerHTML = html;
   document.body.appendChild(host);
   try {
     const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
@@ -268,20 +268,105 @@ async function downloadInvoicePdf(job, customer, engineer) {
         });
       },
     });
-    const img = canvas.toDataURL("image/png");
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
     const margin = 8;
     const usableW = pageW - margin * 2;
+    const usableH = pageH - margin * 2;
     const imgH = (canvas.height * usableW) / canvas.width;
-    const h = Math.min(imgH, pageH - margin * 2);
-    pdf.addImage(img, "PNG", margin, margin, usableW, h);
-    const safe = String(customer?.name || "فاتورة").replace(/[\\/:*?"<>|]/g, "-");
-    pdf.save(`فاتورة-${safe}.pdf`);
+    const pageCanvasH = Math.floor((usableH * canvas.width) / usableW);
+    let y = 0;
+    let page = 0;
+    while (y < canvas.height) {
+      const sliceH = Math.min(pageCanvasH, canvas.height - y);
+      const slice = document.createElement("canvas");
+      slice.width = canvas.width;
+      slice.height = sliceH;
+      slice.getContext("2d").drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+      const img = slice.toDataURL("image/png");
+      const sliceMm = (sliceH * usableW) / canvas.width;
+      if (page > 0) pdf.addPage();
+      pdf.addImage(img, "PNG", margin, margin, usableW, sliceMm);
+      y += sliceH;
+      page += 1;
+    }
+    pdf.save(filename);
   } finally {
     host.remove();
   }
+}
+async function downloadInvoicePdf(job, customer, engineer) {
+  const safe = String(customer?.name || "فاتورة").replace(/[\\/:*?"<>|]/g, "-");
+  await htmlToPdf(invoiceMarkup(job, customer, engineer), `فاتورة-${safe}.pdf`);
+}
+function statementMarkup({ from, to, rows, totals }) {
+  const issued = new Date().toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { day: "numeric", month: "long", year: "numeric" });
+  const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const period = `${dt(from) || from || "—"} → ${dt(to) || to || "—"}`;
+  const trs = rows.map((r) => `
+    <tr>
+      <td style="padding:9px 10px;border-bottom:1px solid #e8eef5;font-size:12px;white-space:nowrap">${esc(r.date)}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #e8eef5;font-size:12px;font-weight:700">${esc(r.customer)}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #e8eef5;font-size:12px">${esc(r.service)}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #e8eef5;font-size:12px">${esc(r.engineer)}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #e8eef5;font-size:12px">${esc(r.status)}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #e8eef5;font-size:12px;direction:ltr;text-align:left">${moneyHtml(r.price, 12)}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #e8eef5;font-size:12px;direction:ltr;text-align:left">${moneyHtml(r.paid, 12)}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #e8eef5;font-size:12px;direction:ltr;text-align:left">${moneyHtml(r.profit, 12)}</td>
+    </tr>`).join("");
+  return `
+  <div style="width:920px;box-sizing:border-box;background:#ffffff;color:#0f172a;font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right">
+    <div style="background:#0f766e;color:#fff;padding:22px 26px">
+      <div style="font-size:12px;opacity:.9;margin-bottom:6px">كشف حساب العمليات</div>
+      <div style="font-size:24px;font-weight:700">${esc(BRAND)}</div>
+      <div style="margin-top:10px;font-size:13px;line-height:1.7">
+        <div>الفترة: ${esc(period)}</div>
+        <div>تاريخ الإصدار: ${esc(issued)}</div>
+        <div>عدد العمليات: ${rows.length}</div>
+      </div>
+    </div>
+    <div style="padding:18px 20px 8px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:12px"><div style="font-size:11px;color:#047857;font-weight:700">الإيراد</div><div style="margin-top:6px;font-size:16px;font-weight:700">${moneyHtml(totals.revenue, 14, "#047857")}</div></div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px"><div style="font-size:11px;color:#1d4ed8;font-weight:700">المقبوض</div><div style="margin-top:6px;font-size:16px;font-weight:700">${moneyHtml(totals.paid, 14, "#1d4ed8")}</div></div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px"><div style="font-size:11px;color:#c2410c;font-weight:700">المتبقي عند العملاء</div><div style="margin-top:6px;font-size:16px;font-weight:700">${moneyHtml(totals.owed, 14, "#c2410c")}</div></div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px"><div style="font-size:11px;color:#0f766e;font-weight:700">صافي الربح</div><div style="margin-top:6px;font-size:16px;font-weight:700">${moneyHtml(totals.profit, 14, "#0f766e")}</div></div>
+    </div>
+    <div style="padding:8px 20px 24px">
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e8eef5;border-radius:12px;overflow:hidden">
+        <thead>
+          <tr style="background:#f8fafc;color:#64748b">
+            <th style="padding:10px;text-align:right;font-size:11px">التاريخ</th>
+            <th style="padding:10px;text-align:right;font-size:11px">العميل</th>
+            <th style="padding:10px;text-align:right;font-size:11px">العمل</th>
+            <th style="padding:10px;text-align:right;font-size:11px">المهندس</th>
+            <th style="padding:10px;text-align:right;font-size:11px">الحالة</th>
+            <th style="padding:10px;text-align:right;font-size:11px">السعر</th>
+            <th style="padding:10px;text-align:right;font-size:11px">المقبوض</th>
+            <th style="padding:10px;text-align:right;font-size:11px">الربح</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${trs || `<tr><td colspan="8" style="padding:24px;text-align:center;color:#94a3b8">لا توجد عمليات في هذه الفترة</td></tr>`}
+        </tbody>
+      </table>
+      <div style="margin-top:18px;font-size:11px;color:#94a3b8">الأعمال غير الملغاة ضمن الفترة المحددة حسب تاريخ العمل.</div>
+    </div>
+  </div>`;
+}
+async function downloadStatementPdf(payload) {
+  const name = `كشف-حساب-${payload.from || "الكل"}-${payload.to || "الكل"}`.replace(/[\\/:*?"<>|]/g, "-");
+  await htmlToPdf(statementMarkup(payload), `${name}.pdf`);
+}
+function inDateRange(dateStr, from, to) {
+  const d = String(dateStr || "").slice(0, 10);
+  if (!d) return false;
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+function monthStart(d = today()) {
+  return String(d).slice(0, 8) + "01";
 }
 function NiceSelect({ value, onChange, options, placeholder = "اختر", className = "", muted = false, required = false, searchable = false, searchPlaceholder = "بحث..." }) {
   const [open, setOpen] = useState(false);
@@ -480,6 +565,9 @@ function Main() {
   const [detail, setDetail] = useState(null);
   const [toast, setToast] = useState("");
   const [nowLabel, setNowLabel] = useState("");
+  const [accFrom, setAccFrom] = useState(() => monthStart());
+  const [accTo, setAccTo] = useState(() => today());
+  const [pdfBusy, setPdfBusy] = useState(false);
   const goTab = (k) => { setTab(k); setMenuOpen(false); };
   const load = useCallback(async () => {
     const [c, e, j, pays, receipts, brands, types] = await Promise.all([
@@ -533,8 +621,31 @@ function Main() {
     return { engineer_id: e.id, name: e.name, earned, paid, balance, jobs };
   });
   const openN = d.j.filter((j) => ["in_progress", "postponed"].includes(j.status) || j.status === "new" || j.status === "scheduled").length;
+  const accLive = live
+    .filter((j) => inDateRange(j.job_date, accFrom, accTo))
+    .sort((a, b) => String(b.job_date || "").localeCompare(String(a.job_date || "")));
   const months = {};
-  live.forEach((j) => { const m = (j.job_date || "").slice(0, 7) || "—"; (months[m] ||= []).push(j); });
+  accLive.forEach((j) => { const m = (j.job_date || "").slice(0, 7) || "—"; (months[m] ||= []).push(j); });
+  const accRows = accLive.map((j) => ({
+    id: j.id,
+    date: dt(j.job_date) || "بدون تاريخ",
+    customer: cm[j.customer_id]?.name || "عميل محذوف",
+    service: serviceName(j),
+    engineer: j.engineer_id ? ("م. " + (em[j.engineer_id]?.name || "—")) : "بدون مهندس",
+    status: statusLabel(j.status),
+    price: n(j.price),
+    paid: n(j.paid),
+    profit: n(j.profit),
+    remaining: n(j.remaining),
+  }));
+  const accTotals = {
+    revenue: sum(accLive, "price"),
+    paid: sum(accLive, "paid"),
+    profit: sum(accLive, "profit"),
+    owed: owed(accLive),
+    engFees: sum(accLive, "engineer_fee"),
+    materials: sum(accLive, "materials_cost"),
+  };
   const nav = [
     ["jobs", "الأعمال", Wrench],
     ["customers", "العملاء", Users],
@@ -854,57 +965,167 @@ function Main() {
           </>}
 
           {tab === "acc" && (() => {
-            const profit = sum(live, "profit");
-            const revenue = sum(live, "price");
-            const engFees = sum(live, "engineer_fee");
-            const materials = sum(live, "materials_cost");
-            const custOwed = owed(live);
-            const custCredit = Math.round(live.reduce((s, j) => s + Math.max(0, -n(j.remaining)), 0) * 100) / 100;
             const engBal = sum(books, "balance");
             const monthKeys = Object.keys(months).sort().reverse();
+            const custCredit = Math.round(accLive.reduce((s, j) => s + Math.max(0, -n(j.remaining)), 0) * 100) / 100;
+            const exportPdf = async () => {
+              setPdfBusy(true);
+              try {
+                await downloadStatementPdf({
+                  from: accFrom,
+                  to: accTo,
+                  rows: accRows,
+                  totals: {
+                    revenue: accTotals.revenue,
+                    paid: accTotals.paid,
+                    profit: accTotals.profit,
+                    owed: accTotals.owed,
+                  },
+                });
+                setToast("تم إنشاء كشف PDF");
+              } catch (err) {
+                setToast(err?.message || "تعذّر إنشاء ملف PDF");
+              } finally {
+                setPdfBusy(false);
+              }
+            };
             return (
               <>
                 <div className="ph">
                   <div>
                     <h1>الحسابات</h1>
-                    <p>ملخص مالي واضح للإيراد والأرباح والمعلقات</p>
+                    <p>كشف عمليات مع تحديد الفترة وتصدير PDF</p>
                   </div>
-                  {nowLabel && <span className="today">{nowLabel}</span>}
+                  <button type="button" className="pri" disabled={pdfBusy} onClick={exportPdf}>
+                    <FileText size={16} /> {pdfBusy ? "جارٍ التصدير..." : "طباعة PDF"}
+                  </button>
                 </div>
 
-                <section className={"acc-hero" + (n(profit) < 0 ? " neg" : "")}>
+                <div className="card acc-filter">
+                  <div className="card-h">
+                    <b>فترة الكشف</b>
+                    <span className="sub" style={{ margin: 0 }}>{accRows.length} عملية</span>
+                  </div>
+                  <div className="acc-filter-grid">
+                    <F l="من تاريخ"><input type="date" value={accFrom} onChange={(e) => setAccFrom(e.target.value)} /></F>
+                    <F l="إلى تاريخ"><input type="date" value={accTo} onChange={(e) => setAccTo(e.target.value)} /></F>
+                  </div>
+                  <div className="acc-presets">
+                    <button type="button" className="soft" onClick={() => { setAccFrom(monthStart()); setAccTo(today()); }}>هذا الشهر</button>
+                    <button type="button" className="soft" onClick={() => {
+                      const d = new Date();
+                      d.setMonth(d.getMonth() - 1);
+                      const y = d.getFullYear();
+                      const m = String(d.getMonth() + 1).padStart(2, "0");
+                      const last = new Date(y, d.getMonth() + 1, 0).getDate();
+                      setAccFrom(`${y}-${m}-01`);
+                      setAccTo(`${y}-${m}-${String(last).padStart(2, "0")}`);
+                    }}>الشهر الماضي</button>
+                    <button type="button" className="soft" onClick={() => { setAccFrom(""); setAccTo(""); }}>كل الفترة</button>
+                  </div>
+                </div>
+
+                <section className={"acc-hero" + (n(accTotals.profit) < 0 ? " neg" : "")}>
                   <div className="acc-hero-top">
                     <span className="acc-hero-ico"><TrendingUp size={18} /></span>
-                    <span>صافي الربح</span>
+                    <span>صافي الربح للفترة</span>
                   </div>
-                  <b className={n(profit) < 0 ? "red" : "green"}>{R(profit)}</b>
-                  <small>بعد خصم حقوق المهندسين وتكلفة المواد من إيراد الأعمال</small>
+                  <b className={n(accTotals.profit) < 0 ? "red" : "green"}>{R(accTotals.profit)}</b>
+                  <small>
+                    {(accFrom || accTo)
+                      ? `من ${dt(accFrom) || "البداية"} إلى ${dt(accTo) || "اليوم"}`
+                      : "كل الأعمال غير الملغاة"}
+                  </small>
                 </section>
 
                 <div className="acc-metrics">
                   <article className="acc-metric due">
-                    <span>المتبقي عند العملاء</span>
-                    <b className={custOwed > 0 ? "red" : ""}>{Sign(custOwed ? -custOwed : 0)}</b>
+                    <span>المتبقي عند العملاء (للفترة)</span>
+                    <b className={accTotals.owed > 0 ? "red" : ""}>{Sign(accTotals.owed ? -accTotals.owed : 0)}</b>
                   </article>
                   <article className="acc-metric eng">
-                    <span>{n(engBal) < 0 ? "المتبقي عند المهندسين" : "المتبقي للمهندسين"}</span>
+                    <span>{n(engBal) < 0 ? "المتبقي عند المهندسين" : "المتبقي للمهندسين"} <small style={{ fontWeight: 600 }}>(كل الوقت)</small></span>
                     <b className={n(engBal) < 0 ? "red" : n(engBal) > 0 ? "green" : ""}>{Sign(engBal)}</b>
                   </article>
                 </div>
 
                 <div className="acc-break card">
-                  <div className="card-h"><b>تفصيل الإيراد</b><span className="sub" style={{ margin: 0 }}>الأعمال غير الملغاة</span></div>
+                  <div className="card-h"><b>تفصيل الفترة</b><span className="sub" style={{ margin: 0 }}>حسب الأعمال ضمن التواريخ</span></div>
                   <div className="acc-break-grid">
-                    <div><span>إيراد الأعمال</span><b>{R(revenue)}</b></div>
-                    <div><span>حقوق المهندسين</span><b>{R(engFees)}</b></div>
-                    <div><span>تكلفة المواد</span><b>{R(materials)}</b></div>
+                    <div><span>إيراد الأعمال</span><b>{R(accTotals.revenue)}</b></div>
+                    <div><span>المقبوض</span><b>{R(accTotals.paid)}</b></div>
+                    <div><span>حقوق المهندسين</span><b>{R(accTotals.engFees)}</b></div>
+                    <div><span>تكلفة المواد</span><b>{R(accTotals.materials)}</b></div>
                     {custCredit > 0 && <div><span>المتبقي للعملاء</span><b className="green">{Sign(custCredit)}</b></div>}
                   </div>
                 </div>
 
-                <div className="acc-months card">
-                  <div className="card-h"><b>ملخص الأشهر</b><span className="sub" style={{ margin: 0 }}>{monthKeys.length ? `${monthKeys.length} شهر` : "لا بيانات بعد"}</span></div>
-                  {monthKeys.length ? (
+                <div className="card acc-statement">
+                  <div className="card-h">
+                    <b>كشف العمليات</b>
+                    <button type="button" className="soft pdf" disabled={pdfBusy} onClick={exportPdf}>
+                      <FileText size={15} /> PDF
+                    </button>
+                  </div>
+                  {accRows.length ? (
+                    <>
+                      <div className="acc-table-wrap desktop-only">
+                        <table className="acc-table">
+                          <thead>
+                            <tr>
+                              <th>التاريخ</th>
+                              <th>العميل</th>
+                              <th>العمل</th>
+                              <th>المهندس</th>
+                              <th>الحالة</th>
+                              <th>السعر</th>
+                              <th>المقبوض</th>
+                              <th>الربح</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {accRows.map((r) => (
+                              <tr key={r.id} onClick={() => setDetail(r.id)} style={{ cursor: "pointer" }}>
+                                <td>{r.date}</td>
+                                <td><b>{r.customer}</b></td>
+                                <td>{r.service}</td>
+                                <td>{r.engineer}</td>
+                                <td>{r.status}</td>
+                                <td>{R(r.price)}</td>
+                                <td>{R(r.paid)}</td>
+                                <td className={n(r.profit) < 0 ? "red" : "green"}>{R(r.profit)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="acc-ops mobile-only">
+                        {accRows.map((r) => (
+                          <button type="button" className="acc-op" key={r.id} onClick={() => setDetail(r.id)}>
+                            <div className="acc-op-top">
+                              <b>{r.customer}</b>
+                              <span>{r.date}</span>
+                            </div>
+                            <div className="acc-op-mid">
+                              <span>{r.service}</span>
+                              <span className="muted-val">{r.engineer}</span>
+                            </div>
+                            <div className="acc-op-bot">
+                              <span>{r.status}</span>
+                              <b className={n(r.profit) < 0 ? "red" : "green"}>{R(r.profit)}</b>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="acc-empty">لا توجد عمليات ضمن الفترة المحددة.</p>
+                  )}
+                </div>
+
+                {monthKeys.length > 0 && (
+                  <div className="acc-months card">
+                    <div className="card-h"><b>ملخص الأشهر داخل الفترة</b><span className="sub" style={{ margin: 0 }}>{monthKeys.length} شهر</span></div>
                     <div className="acc-month-list">
                       {monthKeys.map((m) => {
                         const rows = months[m];
@@ -923,10 +1144,8 @@ function Main() {
                         );
                       })}
                     </div>
-                  ) : (
-                    <p className="acc-empty">لا توجد أعمال بعد لعرض ملخص شهري.</p>
-                  )}
-                </div>
+                  </div>
+                )}
               </>
             );
           })()}
