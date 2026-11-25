@@ -38,12 +38,17 @@ const custAddr = (c) => [c?.district, c?.address].filter(Boolean).join(" · ");
 const ST = { new: "جديد", scheduled: "مجدول", in_progress: "قيد التنفيذ", completed: "مكتمل", cancelled: "ملغي", postponed: "مؤجل" };
 const n = (v) => Number(v || 0);
 const num = (v) => n(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
-const R = (v) => <span className={"money" + (n(v) < 0 ? " neg" : "")}><RiyalIcon width={14} height={14} aria-label="ريال" />{num(v)}</span>;
+const R = (v) => <span className={"money" + (n(v) < 0 ? " neg" : "")}><RiyalIcon width={14} height={14} aria-label="ريال سعودي" title="ريال سعودي" />{num(v)}</span>;
 const Sign = (v) => {
   const x = Math.round(n(v) * 100) / 100;
   const cls = x > 0 ? " pos" : x < 0 ? " neg" : "";
-  return <span className={"money" + cls}><RiyalIcon width={14} height={14} aria-label="ريال" />{x > 0 ? "+" + num(x) : num(x)}</span>;
+  return <span className={"money" + cls}><RiyalIcon width={14} height={14} aria-label="ريال سعودي" title="ريال سعودي" />{x > 0 ? "+" + num(x) : num(x)}</span>;
 };
+/** Official Saudi Riyal symbol (SAMA / U+20C1) as inline SVG for PDF HTML. */
+const sarSvg = (size = 14, color = "currentColor") =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1124.14 1256.39" width="${size}" height="${size}" fill="${color}" aria-label="ريال سعودي" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M699.62,1113.02h0c-20.06,44.48-33.32,92.75-38.4,143.37l424.51-90.24c20.06-44.47,33.31-92.75,38.4-143.37l-424.51,90.24Z"/><path d="M1085.73,895.8c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.33v-135.2l292.27-62.11c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.27V66.13c-50.67,28.45-95.67,66.32-132.25,110.99v403.35l-132.25,28.11V0c-50.67,28.44-95.67,66.32-132.25,110.99v525.69l-295.91,62.88c-20.06,44.47-33.33,92.75-38.42,143.37l334.33-71.05v170.26l-358.3,76.14c-20.06,44.47-33.32,92.75-38.4,143.37l375.04-79.7c30.53-6.35,56.77-24.4,73.83-49.24l68.78-101.97v-.02c7.14-10.55,11.3-23.27,11.3-36.97v-149.98l132.25-28.11v270.4l424.53-90.28Z"/></svg>`;
+const moneyHtml = (v, size = 14, color = "#0f172a") =>
+  `<span style="display:inline-flex;align-items:center;gap:5px;direction:ltr;white-space:nowrap;font-variant-numeric:tabular-nums">${num(v)}${sarSvg(size, color)}</span>`;
 const custBal = (remaining) => {
   const x = Math.round(n(remaining) * 100) / 100;
   if (x > 0) return { label: "المتبقي عنده", value: -x, kind: "over" };
@@ -96,11 +101,12 @@ function invoiceMarkup(job, customer, engineer) {
   const materials = n(job.materials_cost);
   const issued = new Date().toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { day: "numeric", month: "long", year: "numeric" });
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const row = (label, value) => `
+  const row = (label, valueHtml) => `
     <tr>
       <td style="padding:12px 14px;border-bottom:1px solid #e8eef5;color:#64748b;font-size:13px;font-weight:700;width:38%">${esc(label)}</td>
-      <td style="padding:12px 14px;border-bottom:1px solid #e8eef5;color:#0f172a;font-size:14px;font-weight:700">${esc(value)}</td>
+      <td style="padding:12px 14px;border-bottom:1px solid #e8eef5;color:#0f172a;font-size:14px;font-weight:700">${valueHtml}</td>
     </tr>`;
+  const text = (v) => esc(v || "—");
   return `
   <div style="width:794px;box-sizing:border-box;background:#ffffff;color:#0f172a;font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right;letter-spacing:normal">
     <div style="background:#0f766e;color:#ffffff;padding:26px 32px">
@@ -127,28 +133,28 @@ function invoiceMarkup(job, customer, engineer) {
     <div style="padding:24px 28px 8px">
       <div style="font-size:13px;font-weight:700;color:#0f766e;margin:0 0 10px">بيانات العميل والعمل</div>
       <table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e8eef5;border-radius:12px;overflow:hidden">
-        ${row("العميل", customer?.name || "—")}
-        ${row("الجوال", customer?.phone || "—")}
-        ${row("الحي", customer?.district || "—")}
-        ${row("العنوان", customer?.address || "—")}
-        ${row("نوع العمل", serviceName(job))}
-        ${row("الجهاز", spec ? `${spec} × ${job.units || 1}` : "—")}
-        ${row("تاريخ العمل", dt(job.job_date) || "—")}
-        ${row("المهندس المنفّذ", engineer?.name ? "م. " + engineer.name : "بدون مهندس")}
-        ${row("الحالة", ST[job.status] || "—")}
+        ${row("العميل", text(customer?.name))}
+        ${row("الجوال", text(customer?.phone))}
+        ${row("الحي", text(customer?.district))}
+        ${row("العنوان", text(customer?.address))}
+        ${row("نوع العمل", text(serviceName(job)))}
+        ${row("الجهاز", text(spec ? `${spec} × ${job.units || 1}` : "—"))}
+        ${row("تاريخ العمل", text(dt(job.job_date) || "—"))}
+        ${row("المهندس المنفّذ", text(engineer?.name ? "م. " + engineer.name : "بدون مهندس"))}
+        ${row("الحالة", text(ST[job.status] || "—"))}
       </table>
 
       <div style="font-size:13px;font-weight:700;color:#0f766e;margin:20px 0 10px">المبالغ</div>
       <table style="width:100%;border-collapse:collapse;border:1px solid #e8eef5;border-radius:12px;overflow:hidden">
-        ${row("المبلغ الإجمالي", num(job.price) + " ر.س")}
-        ${row("المقبوض", num(job.paid) + " ر.س")}
-        ${row(bal.label, num(Math.abs(bal.value)) + " ر.س")}
-        ${materials > 0 ? row("تكلفة المواد", num(materials) + " ر.س") : ""}
+        ${row("المبلغ الإجمالي", moneyHtml(job.price))}
+        ${row("المقبوض", moneyHtml(job.paid))}
+        ${row(bal.label, moneyHtml(Math.abs(bal.value)))}
+        ${materials > 0 ? row("تكلفة المواد", moneyHtml(materials)) : ""}
       </table>
 
       <div style="margin-top:14px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px">
         <div style="font-size:13px;font-weight:700;color:#047857">المبلغ المستحق على الفاتورة</div>
-        <div style="font-size:22px;font-weight:700;color:#047857;direction:ltr">${esc(num(job.price))} ر.س</div>
+        <div style="font-size:22px;font-weight:700;color:#047857">${moneyHtml(job.price, 20, "#047857")}</div>
       </div>
 
       ${note ? `<div style="margin-top:14px;background:#f8fafc;border:1px solid #e8eef5;border-right:4px solid #0f766e;border-radius:12px;padding:14px 16px"><div style="font-size:12px;font-weight:700;color:#0f766e;margin-bottom:6px">ملاحظات</div><div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${esc(note)}</div></div>` : ""}
