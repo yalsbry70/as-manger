@@ -560,7 +560,9 @@ function Main() {
             </button>
           ))}
         </nav>
-        <button type="button" className="out" onClick={() => sb.auth.signOut()}><LogOut size={18} /><span>تسجيل الخروج</span></button>
+        <button type="button" className="out danger-out" onClick={() => sb.auth.signOut()}>
+          <LogOut size={18} /><span>تسجيل الخروج</span>
+        </button>
       </aside>
       <div className="stage">
         <header className="topbar">
@@ -851,34 +853,83 @@ function Main() {
             )}
           </>}
 
-          {tab === "acc" && <>
-            <div className="ph"><div><h1>الحسابات</h1><p>الإيراد والأرباح والمتبقي</p></div>{nowLabel && <span className="today">{nowLabel}</span>}</div>
-            <div className="kpis">
-              <Kpi tone="tone-ok" icon={<TrendingUp size={18} />} label="صافي الربح" valueClass={n(sum(live, "profit")) < 0 ? "red" : "green"}>{R(sum(live, "profit"))}</Kpi>
-              <Kpi tone="tone-due" icon={<Wallet size={18} />} label="المتبقي عند العملاء" valueClass={owed(live) > 0 ? "red" : ""}>{Sign(owed(live) ? -owed(live) : 0)}</Kpi>
-              <Kpi tone="tone-info" icon={<UserCog size={18} />} label={n(sum(books, "balance")) < 0 ? "المتبقي عند المهندسين" : "المتبقي للمهندسين"} valueClass={n(sum(books, "balance")) < 0 ? "red" : n(sum(books, "balance")) > 0 ? "green" : ""}>{Sign(sum(books, "balance"))}</Kpi>
-            </div>
-            <div className="card">
-              <div className="stats">
-                <div>إيراد الأعمال<b>{R(sum(live, "price"))}</b></div>
-                <div>حقوق المهندسين<b>{R(sum(live, "engineer_fee"))}</b></div>
-                <div>تكلفة المواد<b>{R(sum(live, "materials_cost"))}</b></div>
-                {live.some((j) => n(j.remaining) < 0) && <div>المتبقي للعملاء<b>{Sign(Math.round(live.reduce((s, j) => s + Math.max(0, -n(j.remaining)), 0) * 100) / 100)}</b></div>}
-              </div>
-            </div>
-            <div className="card table-card">
-              <div className="card-h"><b>ملخص الأشهر</b><span className="sub" style={{ margin: 0 }}>كل الأعمال غير الملغاة</span></div>
-              <table>
-                <thead><tr><th>الشهر</th><th>الأعمال</th><th>الإيراد</th><th>الربح</th></tr></thead>
-                <tbody>
-                  {Object.keys(months).sort().reverse().map((m) => (
-                    <tr key={m}><td>{monthLabel(m)}</td><td className="num">{months[m].length}</td><td>{R(sum(months[m], "price"))}</td><td>{R(sum(months[m], "profit"))}</td></tr>
-                  ))}
-                  {!Object.keys(months).length && <tr><td className="empty-cell" colSpan={4}>لا توجد أعمال بعد</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </>}
+          {tab === "acc" && (() => {
+            const profit = sum(live, "profit");
+            const revenue = sum(live, "price");
+            const engFees = sum(live, "engineer_fee");
+            const materials = sum(live, "materials_cost");
+            const custOwed = owed(live);
+            const custCredit = Math.round(live.reduce((s, j) => s + Math.max(0, -n(j.remaining)), 0) * 100) / 100;
+            const engBal = sum(books, "balance");
+            const monthKeys = Object.keys(months).sort().reverse();
+            return (
+              <>
+                <div className="ph">
+                  <div>
+                    <h1>الحسابات</h1>
+                    <p>ملخص مالي واضح للإيراد والأرباح والمعلقات</p>
+                  </div>
+                  {nowLabel && <span className="today">{nowLabel}</span>}
+                </div>
+
+                <section className={"acc-hero" + (n(profit) < 0 ? " neg" : "")}>
+                  <div className="acc-hero-top">
+                    <span className="acc-hero-ico"><TrendingUp size={18} /></span>
+                    <span>صافي الربح</span>
+                  </div>
+                  <b className={n(profit) < 0 ? "red" : "green"}>{R(profit)}</b>
+                  <small>بعد خصم حقوق المهندسين وتكلفة المواد من إيراد الأعمال</small>
+                </section>
+
+                <div className="acc-metrics">
+                  <article className="acc-metric due">
+                    <span>المتبقي عند العملاء</span>
+                    <b className={custOwed > 0 ? "red" : ""}>{Sign(custOwed ? -custOwed : 0)}</b>
+                  </article>
+                  <article className="acc-metric eng">
+                    <span>{n(engBal) < 0 ? "المتبقي عند المهندسين" : "المتبقي للمهندسين"}</span>
+                    <b className={n(engBal) < 0 ? "red" : n(engBal) > 0 ? "green" : ""}>{Sign(engBal)}</b>
+                  </article>
+                </div>
+
+                <div className="acc-break card">
+                  <div className="card-h"><b>تفصيل الإيراد</b><span className="sub" style={{ margin: 0 }}>الأعمال غير الملغاة</span></div>
+                  <div className="acc-break-grid">
+                    <div><span>إيراد الأعمال</span><b>{R(revenue)}</b></div>
+                    <div><span>حقوق المهندسين</span><b>{R(engFees)}</b></div>
+                    <div><span>تكلفة المواد</span><b>{R(materials)}</b></div>
+                    {custCredit > 0 && <div><span>المتبقي للعملاء</span><b className="green">{Sign(custCredit)}</b></div>}
+                  </div>
+                </div>
+
+                <div className="acc-months card">
+                  <div className="card-h"><b>ملخص الأشهر</b><span className="sub" style={{ margin: 0 }}>{monthKeys.length ? `${monthKeys.length} شهر` : "لا بيانات بعد"}</span></div>
+                  {monthKeys.length ? (
+                    <div className="acc-month-list">
+                      {monthKeys.map((m) => {
+                        const rows = months[m];
+                        const mProfit = sum(rows, "profit");
+                        return (
+                          <div className="acc-month-row" key={m}>
+                            <div className="acc-month-main">
+                              <b>{monthLabel(m)}</b>
+                              <span>{rows.length} عمل</span>
+                            </div>
+                            <div className="acc-month-vals">
+                              <span><small>الإيراد</small><b>{R(sum(rows, "price"))}</b></span>
+                              <span><small>الربح</small><b className={n(mProfit) < 0 ? "red" : "green"}>{R(mProfit)}</b></span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="acc-empty">لا توجد أعمال بعد لعرض ملخص شهري.</p>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </main>
       </div>
       {toast && (
@@ -1059,42 +1110,48 @@ function ProfilePanel({ onToast }) {
   const offline = isOfflineApp();
   const [email, setEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [secPhone, setSecPhone] = useState("");
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
-  const [busyE, setBusyE] = useState(false);
-  const [busyP, setBusyP] = useState(false);
+  const [busyPhone, setBusyPhone] = useState(false);
+  const [verify, setVerify] = useState(null);
 
-  useEffect(() => {
-    sb.auth.getSession().then(({ data }) => {
-      const cur = data.session?.user?.email || "";
-      setEmail(cur);
-      setNewEmail(cur);
-    });
+  const loadProfile = useCallback(async () => {
+    const { data } = await sb.auth.getSession();
+    const user = data.session?.user;
+    const cur = user?.email || "";
+    setEmail(cur);
+    setNewEmail(cur);
+    setSecPhone(user?.user_metadata?.security_phone || "");
   }, []);
 
-  const saveEmail = async (e) => {
+  useEffect(() => { loadProfile(); }, [loadProfile]);
+
+  const saveSecurityPhone = async (e) => {
+    e.preventDefault();
+    if (!isSaPhone(secPhone)) return onToast("أدخل رقم جوال سعودي صحيح للتحقق");
+    setBusyPhone(true);
+    const { error } = await sb.auth.updateUser({ data: { security_phone: toSaPhone(secPhone) } });
+    setBusyPhone(false);
+    if (error) return onToast(error.message || "تعذّر حفظ جوال التحقق");
+    setSecPhone(toSaPhone(secPhone));
+    onToast("تم حفظ جوال التحقق");
+  };
+
+  const startEmailChange = (e) => {
     e.preventDefault();
     const next = newEmail.trim().toLowerCase();
     if (!next || next === email) return;
-    setBusyE(true);
-    const { error } = await sb.auth.updateUser({ email: next });
-    setBusyE(false);
-    if (error) return onToast(error.message || "تعذّر تحديث البريد");
-    setEmail(next);
-    onToast(offline ? "تم تحديث البريد على الجهاز" : "تم حفظ طلب تحديث البريد");
+    if (!isSaPhone(secPhone)) return onToast("احفظ جوال التحقق أولاً قبل تغيير البريد");
+    setVerify({ kind: "email", next });
   };
 
-  const savePass = async (e) => {
+  const startPassChange = (e) => {
     e.preventDefault();
     if (pass.length < 6) return onToast("كلمة المرور يجب ألا تقل عن 6 أحرف");
     if (pass !== pass2) return onToast("كلمتا المرور غير متطابقتين");
-    setBusyP(true);
-    const { error } = await sb.auth.updateUser({ password: pass });
-    setBusyP(false);
-    if (error) return onToast(error.message || "تعذّر تحديث كلمة المرور");
-    setPass("");
-    setPass2("");
-    onToast("تم تحديث كلمة المرور بنجاح");
+    if (!isSaPhone(secPhone)) return onToast("احفظ جوال التحقق أولاً قبل تغيير كلمة المرور");
+    setVerify({ kind: "password", next: pass });
   };
 
   return (
@@ -1102,23 +1159,195 @@ function ProfilePanel({ onToast }) {
       <div className="ph">
         <div>
           <h1>الملف الشخصي</h1>
-          <p>تغيير البريد أو كلمة المرور — ينعكس على الموقع وتطبيق الويندوز والجوال</p>
+          <p>أي تغيير للبريد أو كلمة المرور يُحفظ في قاعدة مصادقة الحساب وينعكس على الموقع والويندوز والجوال</p>
         </div>
       </div>
-      <form className="card profile-card" onSubmit={saveEmail}>
+
+      <form className="card profile-card" onSubmit={saveSecurityPhone}>
+        <div className="card-h">
+          <b>جوال التحقق</b>
+          <span className="sub" style={{ margin: 0 }}>مطلوب قبل تغيير البريد أو كلمة المرور</span>
+        </div>
+        <F l="رقم الجوال"><SaudiPhone required value={secPhone} onChange={setSecPhone} /></F>
+        <p className="profile-hint">يُرسل عليه رمز تأكيد عند أي تعديل حسّاس حتى لا يستطيع أحد التغيير من جهاز مفتوح فقط.</p>
+        <div className="composer-a"><button className="pri" disabled={busyPhone}>{busyPhone ? "جارٍ الحفظ..." : "حفظ جوال التحقق"}</button></div>
+      </form>
+
+      <form className="card profile-card" onSubmit={startEmailChange}>
         <div className="card-h"><b>البريد الإلكتروني</b><span className="sub" style={{ margin: 0 }}>الحالي: {email || "—"}</span></div>
         <F l="البريد الجديد"><input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} autoComplete="email" /></F>
-        <div className="composer-a"><button className="pri" disabled={busyE}>{busyE ? "جارٍ الحفظ..." : "حفظ البريد"}</button></div>
+        <div className="composer-a"><button className="pri" type="submit">تغيير البريد</button></div>
       </form>
-      <form className="card profile-card" onSubmit={savePass}>
-        <div className="card-h"><b>كلمة المرور</b><span className="sub" style={{ margin: 0 }}>حدّثها لجميع الأجهزة بعد تسجيل الدخول من جديد</span></div>
+
+      <form className="card profile-card" onSubmit={startPassChange}>
+        <div className="card-h"><b>كلمة المرور</b><span className="sub" style={{ margin: 0 }}>بعد الحفظ استخدمها لتسجيل الدخول من كل الأجهزة</span></div>
         <div className="two">
           <F l="كلمة المرور الجديدة"><input type="password" required minLength={6} value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="new-password" /></F>
           <F l="تأكيد كلمة المرور"><input type="password" required minLength={6} value={pass2} onChange={(e) => setPass2(e.target.value)} autoComplete="new-password" /></F>
         </div>
-        <div className="composer-a"><button className="pri" disabled={busyP}>{busyP ? "جارٍ الحفظ..." : "حفظ كلمة المرور"}</button></div>
+        <div className="composer-a"><button className="pri" type="submit">تغيير كلمة المرور</button></div>
       </form>
+
+      {verify && (
+        <SecurityVerify
+          kind={verify.kind}
+          email={email}
+          securityPhone={toSaPhone(secPhone)}
+          offline={offline}
+          onClose={() => setVerify(null)}
+          onToast={onToast}
+          onDone={async (currentPassword, otp) => {
+            const login = await sb.auth.signInWithPassword({ email, password: currentPassword });
+            if (login.error) throw new Error("كلمة المرور الحالية غير صحيحة");
+
+            const otpOk = await confirmSecurityOtp(toSaPhone(secPhone), otp);
+            if (!otpOk) throw new Error("رمز الجوال غير صحيح أو منتهٍ");
+
+            if (verify.kind === "email") {
+              const { error } = await sb.auth.updateUser({ email: verify.next });
+              if (error) throw new Error(error.message || "تعذّر تحديث البريد");
+              setEmail(verify.next);
+              setNewEmail(verify.next);
+              onToast(offline ? "تم تحديث البريد في الحساب" : "تم حفظ البريد في قاعدة المصادقة — قد يلزم تأكيد الرابط إن كان مفعّلاً");
+            } else {
+              const { error } = await sb.auth.updateUser({ password: verify.next });
+              if (error) throw new Error(error.message || "تعذّر تحديث كلمة المرور");
+              setPass("");
+              setPass2("");
+              onToast("تم تحديث كلمة المرور في قاعدة المصادقة لجميع الأجهزة");
+            }
+            setVerify(null);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+const OTP_KEY = "ac_mgr_security_otp";
+
+function makeOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function sendSecurityOtp(phone, offline) {
+  const code = makeOtp();
+  const payload = { phone: toSaPhone(phone), code, exp: Date.now() + 5 * 60 * 1000 };
+  try { sessionStorage.setItem(OTP_KEY, JSON.stringify(payload)); } catch (_) {}
+
+  if (offline) return { ok: true, via: "offline", code };
+
+  const e164 = "+" + waDigits(phone);
+  // Deliver OTP to the security phone via the device SMS composer (works without Twilio).
+  try {
+    const body = encodeURIComponent("رمز التحقق لتعديل حساب المهندس رشاد: " + code + " — صالح لـ 5 دقائق");
+    const href = "sms:" + e164 + "?&body=" + body;
+    const a = document.createElement("a");
+    a.href = href;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (_) { /* desktop may ignore sms: */ }
+
+  return { ok: true, via: "sms-link", code };
+}
+
+async function confirmSecurityOtp(phone, otp) {
+  const token = String(otp || "").trim();
+  if (!/^\d{6}$/.test(token)) return false;
+  try {
+    const raw = sessionStorage.getItem(OTP_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    if (!saved || saved.phone !== toSaPhone(phone)) return false;
+    if (Date.now() > saved.exp) return false;
+    if (String(saved.code) !== token) return false;
+    sessionStorage.removeItem(OTP_KEY);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function SecurityVerify({ kind, email, securityPhone, offline, onClose, onToast, onDone }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const sendCode = async () => {
+    setSending(true);
+    try {
+      const res = await sendSecurityOtp(securityPhone, offline);
+      if (!res.ok) throw new Error("تعذّر إرسال الرمز");
+      setSent(true);
+      if (res.code) onToast("رمز التحقق: " + res.code + " — صالح 5 دقائق");
+      else onToast("تم إرسال رمز التحقق");
+    } catch (err) {
+      onToast(err.message || "تعذّر إرسال رمز الجوال");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!sent) return onToast("أرسل رمز الجوال أولاً");
+    if (!currentPassword) return onToast("أدخل كلمة المرور الحالية");
+    if (!/^\d{6}$/.test(otp.trim())) return onToast("أدخل رمز الجوال المكوّن من 6 أرقام");
+    setBusy(true);
+    try {
+      await onDone(currentPassword, otp.trim());
+    } catch (err) {
+      onToast(err.message || "فشل التحقق");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Overlay onClose={onClose} labelledBy="sec-verify-title">
+      <form className="sheet sm" onSubmit={submit}>
+        <div className="mh">
+          <div>
+            <h3 id="sec-verify-title">تأكيد الهوية</h3>
+            <p className="sub">
+              {kind === "email" ? "لتغيير البريد" : "لتغيير كلمة المرور"} نحتاج كلمة المرور الحالية ورمز يُرسل لجوال التحقق {securityPhone || ""}
+            </p>
+          </div>
+          <button type="button" className="ib" onClick={onClose} aria-label="إغلاق"><X size={18} /></button>
+        </div>
+        <div className="body">
+          <F l="كلمة المرور الحالية">
+            <input type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" />
+          </F>
+          <F l="رمز الجوال">
+            <div className="otp-row">
+              <input
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                value={otp}
+                onChange={(e) => setOtp(digits(e.target.value).slice(0, 6))}
+                placeholder="000000"
+                className="otp-input"
+              />
+              <button type="button" className="soft" disabled={sending} onClick={sendCode}>
+                {sending ? "جارٍ الإرسال..." : sent ? "إعادة إرسال" : "إرسال الرمز"}
+              </button>
+            </div>
+          </F>
+          <p className="profile-hint">البريد الحالي للدخول: {email || "—"}</p>
+        </div>
+        <div className="mf">
+          <button className="pri" disabled={busy}>{busy ? "جارٍ التحقق..." : "تأكيد وحفظ"}</button>
+          <button type="button" onClick={onClose}>إلغاء</button>
+        </div>
+      </form>
+    </Overlay>
   );
 }
 
