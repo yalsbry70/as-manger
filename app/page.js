@@ -1063,9 +1063,7 @@ function Main() {
                 <div className="card acc-statement">
                   <div className="card-h">
                     <b>كشف العمليات</b>
-                    <button type="button" className="soft pdf" disabled={pdfBusy} onClick={exportPdf}>
-                      <FileText size={15} /> PDF
-                    </button>
+                    <span className="sub" style={{ margin: 0 }}>{accRows.length} عملية</span>
                   </div>
                   {accRows.length ? (
                     <>
