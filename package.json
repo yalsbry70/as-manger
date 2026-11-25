@@ -12,6 +12,8 @@
     "android:apk": "npm run android:sync && npm --prefix mobile run apk"
   },
   "dependencies": {
+    "@capacitor/browser": "^7.0.5",
+    "@capacitor/core": "^7.6.10",
     "@supabase/supabase-js": "^2.47.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",

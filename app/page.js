@@ -92,8 +92,75 @@ const stamp = (v) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 const F = ({ l, children }) => (<label className="f"><span>{l}</span>{children}</label>);
-const wa = (p) => "https://wa.me/" + String(p || "").replace(/\D/g, "");
-const tel = (p) => "tel:+" + String(p || "").replace(/\D/g, "");
+const digits = (p) => String(p || "").replace(/\D/g, "");
+const saLocal = (p) => {
+  let d = digits(p);
+  if (d.startsWith("966")) d = d.slice(3);
+  if (d.startsWith("0")) d = d.slice(1);
+  return d.slice(0, 9);
+};
+const isSaPhone = (p) => /^5\d{8}$/.test(saLocal(p));
+const toSaPhone = (p) => {
+  const local = saLocal(p);
+  return isSaPhone(local) ? "+966" + local : "";
+};
+const waDigits = (p) => {
+  const local = saLocal(p);
+  if (isSaPhone(local)) return "966" + local;
+  const d = digits(p);
+  if (d.startsWith("0") && d.length >= 10) return "966" + d.slice(1);
+  return d;
+};
+const wa = (p) => "https://wa.me/" + waDigits(p);
+const tel = (p) => "tel:+" + waDigits(p);
+const normalizeExternalUrl = (url) => {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^(https?:|tel:|geo:|mailto:)/i.test(raw)) return raw;
+  return "https://" + raw;
+};
+async function openExternal(url, e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const href = normalizeExternalUrl(url);
+  if (!href) return;
+  try {
+    if (typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.()) {
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url: href });
+      return;
+    }
+  } catch (_) { /* fall through */ }
+  window.open(href, "_blank", "noopener,noreferrer");
+}
+function SaudiPhone({ value, onChange, required, name }) {
+  const local = saLocal(value);
+  return (
+    <div className="sa-phone" dir="ltr">
+      <span className="sa-cc" title="السعودية">🇸🇦 +966</span>
+      <input
+        name={name}
+        required={required}
+        inputMode="numeric"
+        autoComplete="tel-national"
+        pattern="5[0-9]{8}"
+        maxLength={9}
+        placeholder="5XXXXXXXX"
+        value={local}
+        title="رقم جوال سعودي يبدأ بـ 5 ويتكون من 9 أرقام"
+        onChange={(e) => {
+          let d = digits(e.target.value);
+          if (d.startsWith("966")) d = d.slice(3);
+          if (d.startsWith("0")) d = d.slice(1);
+          d = d.slice(0, 9);
+          onChange(d ? "+966" + d : "");
+        }}
+      />
+    </div>
+  );
+}
 function invoiceMarkup(job, customer, engineer) {
   const bal = custBal(job.remaining);
   const spec = [job.brand, job.ac_type].filter(Boolean).join(" ");
@@ -462,10 +529,9 @@ function Main() {
               </div>
               {nowLabel && <span className="today">{nowLabel}</span>}
             </div>
-            <div className="kpis">
-              <Kpi tone="tone-due" icon={<Wallet size={18} />} label="المتبقي عند العملاء" valueClass={owed(live) > 0 ? "red" : ""}>{Sign(owed(live) ? -owed(live) : 0)}</Kpi>
-              <Kpi tone="tone-info" icon={<Clock size={18} />} label="أعمال جارية">{openN}</Kpi>
-              <Kpi tone="tone-ok" icon={<TrendingUp size={18} />} label="صافي الربح" valueClass={n(sum(live, "profit")) < 0 ? "red" : "green"}>{R(sum(live, "profit"))}</Kpi>
+            <div className="kpis kpis-compact">
+              <Kpi tone="tone-due" icon={<Wallet size={16} />} label="المتبقي عند العملاء" valueClass={owed(live) > 0 ? "red" : ""}>{Sign(owed(live) ? -owed(live) : 0)}</Kpi>
+              <Kpi tone="tone-info" icon={<Clock size={16} />} label="أعمال جارية">{openN}</Kpi>
             </div>
             <div className="bar">
               <div className="search">
@@ -526,8 +592,8 @@ function Main() {
                     <button type="button" className="soft pdf" onClick={() => downloadInvoicePdf(j, c, em[j.engineer_id])}><FileText size={16} /> تصدير PDF</button>
                     <div className="ibs">
                       {c?.phone && <a className="ib call" title="اتصال" href={tel(c.phone)} onClick={stop}><Phone size={17} /></a>}
-                      {c?.phone && <a className="ib wa" title="واتساب العميل" href={wa(c.phone)} target="_blank" rel="noreferrer" onClick={stop}><WaIcon /></a>}
-                      {c?.map_url && <a className="ib pin" title="الموقع" href={c.map_url} target="_blank" rel="noreferrer" onClick={stop}><MapPin size={17} /></a>}
+                      {c?.phone && <a className="ib wa" title="واتساب العميل" href={wa(c.phone)} onClick={(e) => openExternal(wa(c.phone), e)}><WaIcon /></a>}
+                      {c?.map_url && <a className="ib pin" title="الموقع" href={normalizeExternalUrl(c.map_url)} onClick={(e) => openExternal(c.map_url, e)}><MapPin size={17} /></a>}
                       <button type="button" className="ib edit" title="تعديل" onClick={() => setForm(j)}><Pencil size={17} /></button>
                       <button type="button" className="ib del" title="حذف" onClick={() => setAsk({ kind: "del", job: j })}><Trash2 size={17} /></button>
                     </div>
@@ -581,8 +647,8 @@ function Main() {
                       {(c.phone || c.map_url) && (
                         <div className="links">
                           {c.phone && <a className="ib call" title="اتصال" href={tel(c.phone)}><Phone size={17} /></a>}
-                          {c.phone && <a className="ib wa" title="واتساب" href={wa(c.phone)} target="_blank" rel="noreferrer"><WaIcon /></a>}
-                          {c.map_url && <a className="ib pin" title="الموقع" href={c.map_url} target="_blank" rel="noreferrer"><MapPin size={17} /></a>}
+                          {c.phone && <a className="ib wa" title="واتساب" href={wa(c.phone)} onClick={(e) => openExternal(wa(c.phone), e)}><WaIcon /></a>}
+                          {c.map_url && <a className="ib pin" title="الموقع" href={normalizeExternalUrl(c.map_url)} onClick={(e) => openExternal(c.map_url, e)}><MapPin size={17} /></a>}
                         </div>
                       )}
                     </div>
@@ -678,7 +744,11 @@ function Main() {
 
           {tab === "engineers" && <>
             <div className="ph"><div><h1>المهندسون</h1><p>أجر كل عمل مسند يُخصم فورًا من مديونية المهندس</p></div>{nowLabel && <span className="today">{nowLabel}</span>}</div>
-            <NewBox title="مهندس" fields={[["name", "الاسم", 1], ["phone", "الجوال", 0, "tel"]]} onAdd={(v) => run(sb.from("engineers").insert(v))} />
+            <NewBox title="مهندس" fields={[["name", "الاسم", 1], ["phone", "الجوال", 0, "sa-phone"]]} onAdd={(v) => {
+              if (v.phone && !isSaPhone(v.phone)) { setToast("أدخل رقم جوال سعودي صحيح يبدأ بـ 5"); return false; }
+              const row = { ...v, phone: v.phone ? toSaPhone(v.phone) : null };
+              return run(sb.from("engineers").insert(row));
+            }} />
             {books.map((b) => {
               const ej = b.jobs;
               const eng = em[b.engineer_id];
@@ -710,7 +780,7 @@ function Main() {
                   {eng?.phone && (
                     <div className="links">
                       <a className="ib call" title="اتصال" href={tel(eng.phone)}><Phone size={17} /></a>
-                      <a className="ib wa" title="واتساب" href={wa(eng.phone)} target="_blank" rel="noreferrer"><WaIcon /></a>
+                      <a className="ib wa" title="واتساب" href={wa(eng.phone)} onClick={(e) => openExternal(wa(eng.phone), e)}><WaIcon /></a>
                     </div>
                   )}
                 </article>
@@ -818,14 +888,18 @@ function NewBox({ title, fields, onAdd }) {
       <div className="card-h"><b>إضافة {title}</b></div>
       <div className="two">{fields.map(([k, l, r, mode, ph]) =>
         <F key={k} l={l}>
-          <input
-            required={!!r}
-            type={mode === "url" ? "url" : "text"}
-            inputMode={mode === "url" ? "url" : (mode || "text")}
-            placeholder={ph || ""}
-            value={v[k] || ""}
-            onChange={(e) => setV({ ...v, [k]: e.target.value })}
-          />
+          {mode === "sa-phone" ? (
+            <SaudiPhone required={!!r} value={v[k] || ""} onChange={(phone) => setV({ ...v, [k]: phone })} />
+          ) : (
+            <input
+              required={!!r}
+              type={mode === "url" ? "url" : "text"}
+              inputMode={mode === "url" ? "url" : (mode || "text")}
+              placeholder={ph || ""}
+              value={v[k] || ""}
+              onChange={(e) => setV({ ...v, [k]: e.target.value })}
+            />
+          )}
         </F>)}</div>
       <div className="composer-a"><button className="pri"><Plus size={16} /> حفظ {title}</button></div>
     </form>
@@ -838,10 +912,11 @@ function CustomerForm({ onClose, onSaved, onError }) {
   const set = (k) => (e) => setV({ ...v, [k]: e.target.value });
   const save = async (e) => {
     e.preventDefault();
+    if (!isSaPhone(v.phone)) return onError("أدخل رقم جوال سعودي صحيح يبدأ بـ 5");
     setBusy(true);
     const row = {
       name: v.name.trim(),
-      phone: v.phone.trim() || null,
+      phone: toSaPhone(v.phone),
       district: v.district.trim() || null,
       address: v.address.trim() || null,
       map_url: v.map_url.trim() || null,
@@ -863,7 +938,7 @@ function CustomerForm({ onClose, onSaved, onError }) {
         </div>
         <div className="body">
           <F l="الاسم"><input required value={v.name} onChange={set("name")} /></F>
-          <F l="الجوال"><input required inputMode="tel" value={v.phone} onChange={set("phone")} /></F>
+          <F l="الجوال"><SaudiPhone required value={v.phone} onChange={(phone) => setV({ ...v, phone })} /></F>
           <F l="الحي"><input required value={v.district} onChange={set("district")} placeholder="مثال: البوادي" /></F>
           <F l="العنوان"><input required value={v.address} onChange={set("address")} placeholder="الشارع / المبنى" /></F>
           <F l="رابط خرائط جوجل (اختياري)">
@@ -1096,9 +1171,10 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
     }
     let cid = v.customer_id;
     if (cid === "new") {
+      if (!isSaPhone(v.ph)) return onError("أدخل رقم جوال سعودي صحيح يبدأ بـ 5");
       const r = await sb.from("customers").insert({
         name: v.nm,
-        phone: v.ph || null,
+        phone: toSaPhone(v.ph),
         district: v.di || null,
         address: v.ad || null,
         map_url: v.mp || null,
@@ -1149,7 +1225,7 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
           </F>
           {v.customer_id === "new" && <div className="two">
             <F l="اسم العميل"><input required value={g("nm")} onChange={set("nm")} /></F>
-            <F l="الجوال"><input required inputMode="tel" value={g("ph")} onChange={set("ph")} /></F>
+            <F l="الجوال"><SaudiPhone required value={g("ph")} onChange={(ph) => setV({ ...v, ph })} /></F>
             <F l="الحي"><input required value={g("di")} onChange={set("di")} placeholder="مثال: البوادي" /></F>
             <F l="العنوان"><input required value={g("ad")} onChange={set("ad")} placeholder="الشارع / المبنى / تفصيل إضافي" /></F>
             <F l="رابط خرائط جوجل (اختياري)">
