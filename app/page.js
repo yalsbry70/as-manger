@@ -452,7 +452,6 @@ function Main() {
         <header className="topbar">
           <button type="button" className="ib menu-btn" aria-label="القائمة" onClick={() => setMenuOpen(true)}><Menu size={18} /></button>
           <div className="brand"><span className="logo"><Mark size={20} /></span><b>{BRAND}</b></div>
-          <button type="button" className="ib" title="تسجيل الخروج" onClick={() => sb.auth.signOut()}><LogOut size={18} /></button>
         </header>
         <main>
           {tab === "jobs" && <>
@@ -549,47 +548,111 @@ function Main() {
             <div className="ph">
               <div>
                 <h1>العملاء</h1>
-                <p>{d.c.length ? `${d.c.length} عميل` : "أضف العملاء لربط الأعمال بهم"}</p>
+                <p>{d.c.length ? `${d.c.length} عميل — لكل عميل تاريخ العمل والمهندس المنفّذ` : "أضف العملاء لربط الأعمال بهم"}</p>
               </div>
               <button type="button" className="pri" onClick={() => setAddCustomer(true)}><Plus size={17} /> إضافة عميل</button>
             </div>
             {d.c.map((c) => {
-              const cj = d.j.filter((j) => j.customer_id === c.id);
+              const cj = [...d.j.filter((j) => j.customer_id === c.id)]
+                .sort((a, b) => String(b.job_date || "").localeCompare(String(a.job_date || "")));
               const open = cj.filter((j) => j.status !== "cancelled");
               const debt = owed(open);
               const credit = Math.round(open.reduce((s, j) => s + Math.max(0, -n(j.remaining)), 0) * 100) / 100;
+              const last = cj[0];
               return (
-                <article className="card" key={c.id}>
-                  <div className="row">
+                <article className="cust-card" key={c.id}>
+                  <header className="cust-head">
                     <div className="who">
                       <div className="av">{(c.name || "؟").trim().charAt(0)}</div>
-                      <div className="jt"><b>{c.name}</b><span>{[c.phone, custAddr(c)].filter(Boolean).join(" · ") || "بدون بيانات تواصل"}</span></div>
-                    </div>
-                    {(debt > 0 || credit > 0) && (
-                      <div className="badges">
-                        {debt > 0 && <span className="badge bad">المتبقي عنده {Sign(-debt)}</span>}
-                        {credit > 0 && <span className="badge ok">المتبقي له {Sign(credit)}</span>}
+                      <div className="jt">
+                        <b>{c.name}</b>
+                        <span>{[c.phone, custAddr(c)].filter(Boolean).join(" · ") || "بدون بيانات تواصل"}</span>
                       </div>
-                    )}
-                  </div>
-                  {!!cj.length && (
-                    <ul className="mini">
-                      {cj.map((j) => (
-                        <li key={j.id}>
-                          <span>{serviceName(j)} {j.brand || ""}</span>
-                          <span className="sub" style={{ margin: 0 }}>{dt(j.job_date) || "—"} · م. {em[j.engineer_id]?.name || "—"}</span>
-                          <span className={"tag " + j.status}>{ST[j.status]}</span>
-                          {j.status !== "cancelled" && <b>{custBal(j.remaining).label} {Sign(custBal(j.remaining).value)}</b>}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {(c.phone || c.map_url) && (
-                    <div className="links">
-                      {c.phone && <a className="ib call" title="اتصال" href={tel(c.phone)}><Phone size={17} /></a>}
-                      {c.phone && <a className="ib wa" title="واتساب" href={wa(c.phone)} target="_blank" rel="noreferrer"><WaIcon /></a>}
-                      {c.map_url && <a className="ib pin" title="الموقع" href={c.map_url} target="_blank" rel="noreferrer"><MapPin size={17} /></a>}
                     </div>
+                    <div className="cust-meta">
+                      {(debt > 0 || credit > 0) ? (
+                        <div className="badges">
+                          {debt > 0 && <span className="badge bad">المتبقي عنده {Sign(-debt)}</span>}
+                          {credit > 0 && <span className="badge ok">المتبقي له {Sign(credit)}</span>}
+                        </div>
+                      ) : (
+                        <span className="badge mute">{cj.length ? `${cj.length} عمل` : "بدون أعمال"}</span>
+                      )}
+                      {(c.phone || c.map_url) && (
+                        <div className="links">
+                          {c.phone && <a className="ib call" title="اتصال" href={tel(c.phone)}><Phone size={17} /></a>}
+                          {c.phone && <a className="ib wa" title="واتساب" href={wa(c.phone)} target="_blank" rel="noreferrer"><WaIcon /></a>}
+                          {c.map_url && <a className="ib pin" title="الموقع" href={c.map_url} target="_blank" rel="noreferrer"><MapPin size={17} /></a>}
+                        </div>
+                      )}
+                    </div>
+                  </header>
+
+                  {last && (
+                    <div className="cust-last">
+                      <span className="cust-last-label">آخر عمل</span>
+                      <strong>{dt(last.job_date) || "بدون تاريخ"}</strong>
+                      <span className="dot">·</span>
+                      <span>{serviceName(last)}</span>
+                      <span className="dot">·</span>
+                      <span className={!last.engineer_id ? "muted-val" : ""}>
+                        {last.engineer_id ? "م. " + (em[last.engineer_id]?.name || "—") : "بدون مهندس"}
+                      </span>
+                    </div>
+                  )}
+
+                  {cj.length ? (
+                    <div className="visit-wrap">
+                      <div className="visit-title">سجل الزيارات والأعمال</div>
+                      <div className="visit-table" role="table" aria-label={"أعمال " + c.name}>
+                        <div className="visit-head" role="row">
+                          <span>التاريخ</span>
+                          <span>نوع العمل</span>
+                          <span>المهندس</span>
+                          <span>الحالة</span>
+                          <span>الحساب</span>
+                        </div>
+                        {cj.map((j) => {
+                          const bal = custBal(j.remaining);
+                          const engName = j.engineer_id ? ("م. " + (em[j.engineer_id]?.name || "—")) : "بدون مهندس";
+                          const device = [j.brand, j.ac_type].filter(Boolean).join(" ");
+                          return (
+                            <div
+                              className="visit-row"
+                              role="row"
+                              key={j.id}
+                              onClick={() => setDetail(j.id)}
+                              onKeyDown={(e) => { if (e.key === "Enter") setDetail(j.id); }}
+                              tabIndex={0}
+                            >
+                              <div className="visit-cell" data-label="التاريخ">
+                                <b>{dt(j.job_date) || "بدون تاريخ"}</b>
+                              </div>
+                              <div className="visit-cell" data-label="نوع العمل">
+                                <b>{serviceName(j)}</b>
+                                {device ? <small>{device}{j.units ? ` × ${j.units}` : ""}</small> : null}
+                              </div>
+                              <div className={"visit-cell" + (!j.engineer_id ? " dim" : "")} data-label="المهندس">
+                                <b>{engName}</b>
+                              </div>
+                              <div className="visit-cell" data-label="الحالة">
+                                <span className={"tag " + j.status}>{ST[j.status]}</span>
+                              </div>
+                              <div className="visit-cell visit-bal" data-label="الحساب">
+                                {j.status === "cancelled" ? <span className="muted-val">—</span> : (
+                                  <>
+                                    <small>{bal.label}</small>
+                                    <b>{Sign(bal.value)}</b>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="cust-empty">لا توجد أعمال مسجّلة لهذا العميل بعد.</p>
                   )}
                 </article>
               );
