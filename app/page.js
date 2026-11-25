@@ -633,6 +633,7 @@ function Main() {
     service: serviceName(j),
     engineer: j.engineer_id ? ("م. " + (em[j.engineer_id]?.name || "—")) : "بدون مهندس",
     status: statusLabel(j.status),
+    statusKey: j.status,
     price: n(j.price),
     paid: n(j.paid),
     profit: n(j.profit),
@@ -1100,17 +1101,20 @@ function Main() {
                       <div className="acc-ops mobile-only">
                         {accRows.map((r) => (
                           <button type="button" className="acc-op" key={r.id} onClick={() => setDetail(r.id)}>
-                            <div className="acc-op-top">
-                              <b>{r.customer}</b>
-                              <span>{r.date}</span>
+                            <div className="acc-op-head">
+                              <div className="acc-op-who">
+                                <b>{r.customer}</b>
+                                <time>{r.date}</time>
+                              </div>
+                              <span className={"acc-op-status tag " + (r.statusKey || "")}>{r.status}</span>
                             </div>
-                            <div className="acc-op-mid">
-                              <span>{r.service}</span>
-                              <span className="muted-val">{r.engineer}</span>
+                            <div className="acc-op-meta">
+                              <span className="acc-op-svc">{r.service}</span>
+                              <span className="acc-op-eng">{r.engineer}</span>
                             </div>
-                            <div className="acc-op-bot">
-                              <span>{r.status}</span>
-                              <b className={n(r.profit) < 0 ? "red" : "green"}>{R(r.profit)}</b>
+                            <div className="acc-op-foot">
+                              <span>الربح</span>
+                              <strong className={n(r.profit) < 0 ? "red" : "green"}>{R(r.profit)}</strong>
                             </div>
                           </button>
                         ))}
