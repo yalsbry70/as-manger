@@ -5,7 +5,7 @@ import { sb, isOfflineApp } from "../lib/api";
 import { RiyalIcon } from "riyal/react";
 import {
   Wrench, Users, UserCog, Wallet, Phone, MapPin, Plus, Pencil, Trash2,
-  LogOut, Search, X, Calendar, TrendingUp, Clock, FileText,
+  LogOut, Search, X, Calendar, TrendingUp, Clock, FileText, Menu, UserRound,
 } from "lucide-react";
 
 const BRAND = "المهندس رشاد سعيد";
@@ -358,12 +358,15 @@ function Login() {
 
 function Main() {
   const [tab, setTab] = useState("jobs");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [addCustomer, setAddCustomer] = useState(false);
   const [d, setD] = useState({ c: [], e: [], j: [], pays: [], receipts: [], brands: [], types: [] });
   const [f, setF] = useState("all"), [q, setQ] = useState(""), [form, setForm] = useState(null);
   const [ask, setAsk] = useState(null);
   const [detail, setDetail] = useState(null);
   const [toast, setToast] = useState("");
   const [nowLabel, setNowLabel] = useState("");
+  const goTab = (k) => { setTab(k); setMenuOpen(false); };
   const load = useCallback(async () => {
     const [c, e, j, pays, receipts, brands, types] = await Promise.all([
       sb.from("customers").select("*").order("name"),
@@ -418,15 +421,25 @@ function Main() {
   const openN = d.j.filter((j) => ["new", "scheduled", "in_progress"].includes(j.status)).length;
   const months = {};
   live.forEach((j) => { const m = (j.job_date || "").slice(0, 7) || "—"; (months[m] ||= []).push(j); });
-  const nav = [["jobs", "الأعمال", Wrench], ["customers", "العملاء", Users], ["engineers", "المهندسون", UserCog], ["acc", "الحسابات", Wallet]];
+  const nav = [
+    ["jobs", "الأعمال", Wrench],
+    ["customers", "العملاء", Users],
+    ["engineers", "المهندسون", UserCog],
+    ["acc", "الحسابات", Wallet],
+    ["profile", "الملف الشخصي", UserRound],
+  ];
 
   return (
-    <div className="shell">
-      <aside className="side">
-        <div className="brand"><span className="logo"><Mark size={22} /></span><div><b>{BRAND}</b><small>{BRAND_SUB}</small></div></div>
+    <div className={"shell" + (menuOpen ? " menu-open" : "")}>
+      {menuOpen && <button type="button" className="nav-scrim" aria-label="إغلاق القائمة" onClick={() => setMenuOpen(false)} />}
+      <aside className={"side" + (menuOpen ? " open" : "")}>
+        <div className="side-head">
+          <div className="brand"><span className="logo"><Mark size={22} /></span><div><b>{BRAND}</b><small>{BRAND_SUB}</small></div></div>
+          <button type="button" className="ib side-close" aria-label="إغلاق" onClick={() => setMenuOpen(false)}><X size={18} /></button>
+        </div>
         <nav className="side-nav" aria-label="القائمة الرئيسية">
           {nav.map(([k, l, I]) => (
-            <button type="button" key={k} className={"nav-item" + (tab === k ? " on" : "")} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>
+            <button type="button" key={k} className={"nav-item" + (tab === k ? " on" : "")} aria-current={tab === k ? "page" : undefined} onClick={() => goTab(k)}>
               <I size={18} strokeWidth={tab === k ? 2.4 : 2} className="nav-ico" />
               <span className="nav-label">{l}</span>
               <span className={"nav-badge" + (k === "jobs" && openN > 0 ? " show" : "")}>{k === "jobs" && openN > 0 ? openN : ""}</span>
@@ -437,6 +450,7 @@ function Main() {
       </aside>
       <div className="stage">
         <header className="topbar">
+          <button type="button" className="ib menu-btn" aria-label="القائمة" onClick={() => setMenuOpen(true)}><Menu size={18} /></button>
           <div className="brand"><span className="logo"><Mark size={20} /></span><b>{BRAND}</b></div>
           <button type="button" className="ib" title="تسجيل الخروج" onClick={() => sb.auth.signOut()}><LogOut size={18} /></button>
         </header>
@@ -470,40 +484,51 @@ function Main() {
             {jobs.map((j) => {
               const c = cm[j.customer_id], o = origin(j);
               const spec = [j.brand, j.ac_type].filter(Boolean).join(" ");
+                  const stop = (e) => { e.stopPropagation(); };
               return (
-                <article className="job" key={j.id} onClick={() => setDetail(j.id)}>
-                  <div className="jh">
-                    <div className="av">{(c?.name || "؟").trim().charAt(0)}</div>
-                    <div className="jt"><b>{c?.name || "عميل محذوف"}</b><span>{custAddr(c) || c?.phone || "بدون عنوان"}</span></div>
-                    <StatusPick value={j.status} onChange={(status) => setStatus(j.id, status)} />
+                <article className="job" key={j.id}>
+                  <div
+                    className="job-main"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setDetail(j.id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetail(j.id); } }}
+                  >
+                    <div className="jh">
+                      <div className="av">{(c?.name || "؟").trim().charAt(0)}</div>
+                      <div className="jt"><b>{c?.name || "عميل محذوف"}</b><span>{custAddr(c) || c?.phone || "بدون عنوان"}</span></div>
+                      <div className="job-status" onClick={stop} onPointerDown={stop}>
+                        <StatusPick value={j.status} onChange={(status) => setStatus(j.id, status)} />
+                      </div>
+                    </div>
+                    <div className="facts">
+                      <div className="fact-meta"><small>نوع العمل</small><b>{serviceName(j)}</b></div>
+                      <div className="fact-meta"><small>الجهاز</small><b>{spec ? `${spec} × ${j.units}` : "—"}</b></div>
+                      <div className="fact-meta"><small>التاريخ</small><b>{dt(j.job_date) || "بدون تاريخ"}</b></div>
+                      <div className={"fact-meta" + (!j.engineer_id ? " dim" : "")}><small>المهندس</small><b>{em[j.engineer_id]?.name || "بدون مهندس"}</b></div>
+                      <div className="fact-money"><small>السعر</small><b>{R(j.price)}</b></div>
+                      <div className="fact-money"><small>المقبوض</small><b>{R(j.paid)}</b></div>
+                      <div className={"fact-money " + custBal(j.remaining).kind}><small>{custBal(j.remaining).label}</small><b>{Sign(custBal(j.remaining).value)}</b></div>
+                      <div className="fact-money"><small>حق المهندس</small><b>{R(j.engineer_fee)}</b></div>
+                      <div className="fact-money"><small>تكلفة المواد</small><b>{R(j.materials_cost)}</b></div>
+                      <div className={"fact-money " + (n(j.profit) < 0 ? "over" : "clear")}><small>صافي الربح</small><b>{R(j.profit)}</b></div>
+                    </div>
+                    {jobNotes(j) && <div className="note"><small>ملاحظات</small><p>{jobNotes(j)}</p></div>}
+                    {(o || j.warranty_until) && (
+                      <p className="fine">
+                        {o && <span>المركِّب الأصلي: {em[o.engineer_id]?.name || "—"} ({dt(o.job_date) || "بدون تاريخ"})</span>}
+                        {j.warranty_until && <span className={j.warranty_until < today() ? "red" : ""}>{j.warranty_until < today() ? "الضمان منتهي" : "الضمان ساري حتى " + dt(j.warranty_until)}</span>}
+                      </p>
+                    )}
                   </div>
-                  <div className="facts">
-                    <div className="fact-meta"><small>نوع العمل</small><b>{serviceName(j)}</b></div>
-                    <div className="fact-meta"><small>الجهاز</small><b>{spec ? `${spec} × ${j.units}` : "—"}</b></div>
-                    <div className="fact-meta"><small>التاريخ</small><b>{dt(j.job_date) || "بدون تاريخ"}</b></div>
-                    <div className={"fact-meta" + (!j.engineer_id ? " dim" : "")}><small>المهندس</small><b>{em[j.engineer_id]?.name || "بدون مهندس"}</b></div>
-                    <div className="fact-money"><small>السعر</small><b>{R(j.price)}</b></div>
-                    <div className="fact-money"><small>المقبوض</small><b>{R(j.paid)}</b></div>
-                    <div className={"fact-money " + custBal(j.remaining).kind}><small>{custBal(j.remaining).label}</small><b>{Sign(custBal(j.remaining).value)}</b></div>
-                    <div className="fact-money"><small>حق المهندس</small><b>{R(j.engineer_fee)}</b></div>
-                    <div className="fact-money"><small>تكلفة المواد</small><b>{R(j.materials_cost)}</b></div>
-                    <div className={"fact-money " + (n(j.profit) < 0 ? "over" : "clear")}><small>صافي الربح</small><b>{R(j.profit)}</b></div>
-                  </div>
-                  {jobNotes(j) && <div className="note"><small>ملاحظات</small><p>{jobNotes(j)}</p></div>}
-                  {(o || j.warranty_until) && (
-                    <p className="fine">
-                      {o && <span>المركِّب الأصلي: {em[o.engineer_id]?.name || "—"} ({dt(o.job_date) || "بدون تاريخ"})</span>}
-                      {j.warranty_until && <span className={j.warranty_until < today() ? "red" : ""}>{j.warranty_until < today() ? "الضمان منتهي" : "الضمان ساري حتى " + dt(j.warranty_until)}</span>}
-                    </p>
-                  )}
-                  <div className="acts" onClick={(e) => e.stopPropagation()}>
+                  <div className="acts" onClick={stop} onPointerDown={stop} onTouchStart={stop}>
                     {j.status !== "completed" && <button type="button" className="soft done" onClick={() => setStatus(j.id, "completed")}>مكتمل</button>}
                     <button type="button" className="soft" onClick={() => setAsk({ kind: "cust", job: j })}><Plus size={16} /> تسجيل دفعة</button>
                     <button type="button" className="soft pdf" onClick={() => downloadInvoicePdf(j, c, em[j.engineer_id])}><FileText size={16} /> تصدير PDF</button>
                     <div className="ibs">
-                      {c?.phone && <a className="ib call" title="اتصال" href={tel(c.phone)}><Phone size={17} /></a>}
-                      {c?.phone && <a className="ib wa" title="واتساب العميل" href={wa(c.phone)} target="_blank" rel="noreferrer"><WaIcon /></a>}
-                      {c?.map_url && <a className="ib pin" title="الموقع" href={c.map_url} target="_blank" rel="noreferrer"><MapPin size={17} /></a>}
+                      {c?.phone && <a className="ib call" title="اتصال" href={tel(c.phone)} onClick={stop}><Phone size={17} /></a>}
+                      {c?.phone && <a className="ib wa" title="واتساب العميل" href={wa(c.phone)} target="_blank" rel="noreferrer" onClick={stop}><WaIcon /></a>}
+                      {c?.map_url && <a className="ib pin" title="الموقع" href={c.map_url} target="_blank" rel="noreferrer" onClick={stop}><MapPin size={17} /></a>}
                       <button type="button" className="ib edit" title="تعديل" onClick={() => setForm(j)}><Pencil size={17} /></button>
                       <button type="button" className="ib del" title="حذف" onClick={() => setAsk({ kind: "del", job: j })}><Trash2 size={17} /></button>
                     </div>
@@ -521,18 +546,13 @@ function Main() {
           </>}
 
           {tab === "customers" && <>
-            <div className="ph"><div><h1>العملاء</h1><p>{d.c.length ? `${d.c.length} عميل` : "أضف العملاء لربط الأعمال بهم"}</p></div>{nowLabel && <span className="today">{nowLabel}</span>}</div>
-            <NewBox
-              title="عميل"
-              fields={[
-                ["name", "الاسم", 1],
-                ["phone", "الجوال", 1, "tel"],
-                ["district", "الحي", 1],
-                ["address", "العنوان", 1],
-                ["map_url", "رابط خرائط جوجل (اختياري)", 0, "url", "https://maps.google.com/..."],
-              ]}
-              onAdd={(v) => run(sb.from("customers").insert(v))}
-            />
+            <div className="ph">
+              <div>
+                <h1>العملاء</h1>
+                <p>{d.c.length ? `${d.c.length} عميل` : "أضف العملاء لربط الأعمال بهم"}</p>
+              </div>
+              <button type="button" className="pri" onClick={() => setAddCustomer(true)}><Plus size={17} /> إضافة عميل</button>
+            </div>
             {d.c.map((c) => {
               const cj = d.j.filter((j) => j.customer_id === c.id);
               const open = cj.filter((j) => j.status !== "cancelled");
@@ -574,8 +594,24 @@ function Main() {
                 </article>
               );
             })}
-            {!d.c.length && <div className="empty"><div className="empty-ico"><Users size={22} /></div><b>لا يوجد عملاء</b><p>أضف أول عميل من النموذج أعلاه.</p></div>}
+            {!d.c.length && (
+              <div className="empty">
+                <div className="empty-ico"><Users size={22} /></div>
+                <b>لا يوجد عملاء</b>
+                <p>ابدأ بإضافة أول عميل من الزر أعلاه.</p>
+                <button type="button" className="pri" onClick={() => setAddCustomer(true)}><Plus size={16} /> إضافة عميل</button>
+              </div>
+            )}
+            {addCustomer && (
+              <CustomerForm
+                onClose={() => setAddCustomer(false)}
+                onSaved={() => { setAddCustomer(false); load(); }}
+                onError={setToast}
+              />
+            )}
           </>}
+
+          {tab === "profile" && <ProfilePanel onToast={setToast} />}
 
           {tab === "engineers" && <>
             <div className="ph"><div><h1>المهندسون</h1><p>أجر كل عمل مسند يُخصم فورًا من مديونية المهندس</p></div>{nowLabel && <span className="today">{nowLabel}</span>}</div>
@@ -650,7 +686,12 @@ function Main() {
           </>}
         </main>
       </div>
-      {toast && <div className="toast" role="alert"><span>{toast}</span><button type="button" className="ib" onClick={() => setToast("")}><X size={16} /></button></div>}
+      {toast && (
+        <div className={"toast" + (/^تم /.test(toast) ? " ok" : "")} role="status">
+          <span>{toast}</span>
+          <button type="button" className="ib" onClick={() => setToast("")}><X size={16} /></button>
+        </div>
+      )}
       {form && <JobForm init={form} d={d} em={em} brands={d.brands} types={d.types} onClose={() => setForm(null)} onSaved={() => { setForm(null); load(); }} onError={setToast} />}
       {detail && (() => {
         const job = d.j.find((j) => j.id === detail);
@@ -725,6 +766,120 @@ function NewBox({ title, fields, onAdd }) {
         </F>)}</div>
       <div className="composer-a"><button className="pri"><Plus size={16} /> حفظ {title}</button></div>
     </form>
+  );
+}
+
+function CustomerForm({ onClose, onSaved, onError }) {
+  const [v, setV] = useState({ name: "", phone: "", district: "", address: "", map_url: "" });
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setV({ ...v, [k]: e.target.value });
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    const row = {
+      name: v.name.trim(),
+      phone: v.phone.trim() || null,
+      district: v.district.trim() || null,
+      address: v.address.trim() || null,
+      map_url: v.map_url.trim() || null,
+    };
+    const { error } = await sb.from("customers").insert(row);
+    setBusy(false);
+    if (error) return onError(error.message);
+    onSaved();
+  };
+  return (
+    <Overlay onClose={onClose} labelledBy="cust-add-title">
+      <form className="sheet sm" onSubmit={save}>
+        <div className="mh">
+          <div>
+            <h3 id="cust-add-title">إضافة عميل</h3>
+            <p className="sub">الاسم والجوال والحي والعنوان مطلوبة.</p>
+          </div>
+          <button type="button" className="ib" onClick={onClose} aria-label="إغلاق"><X size={18} /></button>
+        </div>
+        <div className="body">
+          <F l="الاسم"><input required value={v.name} onChange={set("name")} /></F>
+          <F l="الجوال"><input required inputMode="tel" value={v.phone} onChange={set("phone")} /></F>
+          <F l="الحي"><input required value={v.district} onChange={set("district")} placeholder="مثال: البوادي" /></F>
+          <F l="العنوان"><input required value={v.address} onChange={set("address")} placeholder="الشارع / المبنى" /></F>
+          <F l="رابط خرائط جوجل (اختياري)">
+            <input type="url" inputMode="url" value={v.map_url} onChange={set("map_url")} placeholder="https://maps.google.com/..." />
+          </F>
+        </div>
+        <div className="mf">
+          <button className="pri" disabled={busy}>{busy ? "جارٍ الحفظ..." : "حفظ العميل"}</button>
+          <button type="button" onClick={onClose}>إلغاء</button>
+        </div>
+      </form>
+    </Overlay>
+  );
+}
+
+function ProfilePanel({ onToast }) {
+  const offline = isOfflineApp();
+  const [email, setEmail] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [pass2, setPass2] = useState("");
+  const [busyE, setBusyE] = useState(false);
+  const [busyP, setBusyP] = useState(false);
+
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => {
+      const cur = data.session?.user?.email || "";
+      setEmail(cur);
+      setNewEmail(cur);
+    });
+  }, []);
+
+  const saveEmail = async (e) => {
+    e.preventDefault();
+    const next = newEmail.trim().toLowerCase();
+    if (!next || next === email) return;
+    setBusyE(true);
+    const { error } = await sb.auth.updateUser({ email: next });
+    setBusyE(false);
+    if (error) return onToast(error.message || "تعذّر تحديث البريد");
+    setEmail(next);
+    onToast(offline ? "تم تحديث البريد على الجهاز" : "تم حفظ طلب تحديث البريد");
+  };
+
+  const savePass = async (e) => {
+    e.preventDefault();
+    if (pass.length < 6) return onToast("كلمة المرور يجب ألا تقل عن 6 أحرف");
+    if (pass !== pass2) return onToast("كلمتا المرور غير متطابقتين");
+    setBusyP(true);
+    const { error } = await sb.auth.updateUser({ password: pass });
+    setBusyP(false);
+    if (error) return onToast(error.message || "تعذّر تحديث كلمة المرور");
+    setPass("");
+    setPass2("");
+    onToast("تم تحديث كلمة المرور بنجاح");
+  };
+
+  return (
+    <>
+      <div className="ph">
+        <div>
+          <h1>الملف الشخصي</h1>
+          <p>تغيير البريد أو كلمة المرور — ينعكس على الموقع وتطبيق الويندوز والجوال</p>
+        </div>
+      </div>
+      <form className="card profile-card" onSubmit={saveEmail}>
+        <div className="card-h"><b>البريد الإلكتروني</b><span className="sub" style={{ margin: 0 }}>الحالي: {email || "—"}</span></div>
+        <F l="البريد الجديد"><input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} autoComplete="email" /></F>
+        <div className="composer-a"><button className="pri" disabled={busyE}>{busyE ? "جارٍ الحفظ..." : "حفظ البريد"}</button></div>
+      </form>
+      <form className="card profile-card" onSubmit={savePass}>
+        <div className="card-h"><b>كلمة المرور</b><span className="sub" style={{ margin: 0 }}>حدّثها لجميع الأجهزة بعد تسجيل الدخول من جديد</span></div>
+        <div className="two">
+          <F l="كلمة المرور الجديدة"><input type="password" required minLength={6} value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="new-password" /></F>
+          <F l="تأكيد كلمة المرور"><input type="password" required minLength={6} value={pass2} onChange={(e) => setPass2(e.target.value)} autoComplete="new-password" /></F>
+        </div>
+        <div className="composer-a"><button className="pri" disabled={busyP}>{busyP ? "جارٍ الحفظ..." : "حفظ كلمة المرور"}</button></div>
+      </form>
+    </>
   );
 }
 

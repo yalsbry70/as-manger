@@ -9,7 +9,12 @@ const arabic = IBM_Plex_Sans_Arabic({
 });
 
 export const metadata = { title: "المهندس رشاد سعيد | سجل الأعمال والحسابات", description: "سجل أعمال المكيفات وحساباتها" };
-export const viewport = { width: "device-width", initialScale: 1, themeColor: "#0e1525" };
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0e1525",
+  viewportFit: "cover",
+};
 
 export default function RootLayout({ children }) {
   return (
