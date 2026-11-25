@@ -321,16 +321,45 @@ main { width: min(1080px, 100%); margin: 0 auto; padding: 32px 28px 48px; }
 .acc-months { padding-bottom: 8px; }
 .acc-month-list { display: flex; flex-direction: column; gap: 8px; }
 .acc-month-row {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff;
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
 }
 .acc-month-main { min-width: 0; }
-.acc-month-main b { display: block; font-size: 14.5px; }
+.acc-month-main b { display: block; font-size: 14.5px; line-height: 1.35; }
 .acc-month-main span { display: block; font-size: 12px; color: var(--mute); font-weight: 600; margin-top: 2px; }
-.acc-month-vals { display: flex; gap: 14px; flex: none; }
-.acc-month-vals span { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.acc-month-vals small { font-size: 11px; font-weight: 800; color: var(--mute); }
-.acc-month-vals b { font-size: 14px; }
+.acc-month-vals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(110px, auto));
+  gap: 8px;
+  flex: none;
+}
+.acc-month-chip {
+  min-width: 110px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.acc-month-chip.ok { background: #ecfdf5; border-color: #a7f3d0; }
+.acc-month-chip.bad { background: #fff1f2; border-color: #fecdd3; }
+.acc-month-chip small {
+  font-size: 11px; font-weight: 800; color: var(--mute); line-height: 1.2;
+}
+.acc-month-chip .money-line,
+.acc-month-chip .money {
+  font-size: 14px; font-weight: 800; line-height: 1.2;
+}
+.acc-month-chip .money svg { width: 12px; height: 12px; }
 .acc-empty { margin: 0; padding: 8px 2px 12px; color: var(--mute); font-size: 13.5px; }
 .acc-filter { margin-bottom: 12px; }
 .acc-filter-grid {
@@ -369,8 +398,16 @@ main { width: min(1080px, 100%); margin: 0 auto; padding: 32px 28px 48px; }
   .acc-metric b { font-size: 16px; }
   .acc-break-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
   .acc-filter-grid { grid-template-columns: 1fr; }
-  .acc-month-row { flex-direction: column; align-items: stretch; gap: 10px; }
-  .acc-month-vals { width: 100%; justify-content: space-between; }
+  .acc-month-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .acc-month-vals {
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+  }
+  .acc-month-chip { min-width: 0; }
   .otp-row { grid-template-columns: 1fr; }
   .desktop-only { display: none !important; }
   .mobile-only, .acc-ops { display: flex !important; }

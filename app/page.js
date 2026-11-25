@@ -1127,6 +1127,7 @@ function Main() {
                     <div className="acc-month-list">
                       {monthKeys.map((m) => {
                         const rows = months[m];
+                        const mRev = sum(rows, "price");
                         const mProfit = sum(rows, "profit");
                         return (
                           <div className="acc-month-row" key={m}>
@@ -1135,8 +1136,14 @@ function Main() {
                               <span>{rows.length} عمل</span>
                             </div>
                             <div className="acc-month-vals">
-                              <span><small>الإيراد</small><b>{R(sum(rows, "price"))}</b></span>
-                              <span><small>الربح</small><b className={n(mProfit) < 0 ? "red" : "green"}>{R(mProfit)}</b></span>
+                              <div className="acc-month-chip">
+                                <small>الإيراد</small>
+                                <strong className="money-line">{R(mRev)}</strong>
+                              </div>
+                              <div className={"acc-month-chip" + (n(mProfit) < 0 ? " bad" : " ok")}>
+                                <small>الربح</small>
+                                <strong className="money-line">{R(mProfit)}</strong>
+                              </div>
                             </div>
                           </div>
                         );
