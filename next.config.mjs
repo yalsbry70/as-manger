@@ -3,7 +3,7 @@ const pack = process.env.NEXT_PUBLIC_MOBILE === "1" || process.env.NEXT_PUBLIC_O
 
 const nextConfig = {
   images: { unoptimized: true },
-  transpilePackages: ["@capacitor/core", "@capacitor/browser"],
+  transpilePackages: ["@capacitor/core", "@capacitor/browser", "@aparajita/capacitor-biometric-auth"],
   ...(pack
     ? {
         output: "export",

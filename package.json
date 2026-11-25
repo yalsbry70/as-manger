@@ -12,6 +12,7 @@
     "android:apk": "npm run android:sync && npm --prefix mobile run apk"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^9.1.2",
     "@capacitor/browser": "^7.0.5",
     "@capacitor/core": "^7.6.10",
     "@supabase/supabase-js": "^2.47.0",

@@ -10,6 +10,7 @@
     "apk": "node build-apk.js"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^9.1.2",
     "@capacitor/android": "^7.4.3",
     "@capacitor/browser": "^7.0.5",
     "@capacitor/core": "^7.4.3"

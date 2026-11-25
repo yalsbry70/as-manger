@@ -1330,43 +1330,57 @@ function EngineerForm({ onClose, onSaved, onError }) {
   );
 }
 
+function isNativeApp() {
+  return typeof window !== "undefined" && !!window.Capacitor?.isNativePlatform?.();
+}
+
+async function verifyDeviceLock(reason) {
+  if (!isNativeApp()) return { ok: true, mode: "web" };
+  try {
+    const { BiometricAuth } = await import("@aparajita/capacitor-biometric-auth");
+    const info = await BiometricAuth.checkBiometry();
+    if (!info.isAvailable && !info.deviceIsSecure) {
+      return { ok: false, error: "فعّل قفل الشاشة أو البصمة من إعدادات الجوال أولاً" };
+    }
+    await BiometricAuth.authenticate({
+      reason: reason || "أكّد هويتك للمتابعة",
+      cancelTitle: "إلغاء",
+      allowDeviceCredential: true,
+      androidTitle: "تأكيد الهوية",
+      androidSubtitle: "استخدم البصمة أو رمز قفل الشاشة",
+      androidConfirmationRequired: false,
+    });
+    return { ok: true, mode: "device" };
+  } catch (err) {
+    const code = err?.code || err?.message || "";
+    if (/cancel|user.?cancel|10|13/i.test(String(code))) {
+      return { ok: false, error: "تم إلغاء التحقق من الجهاز" };
+    }
+    return { ok: false, error: "فشل التحقق ببصمة الجهاز أو رمز القفل" };
+  }
+}
+
 function ProfilePanel({ onToast }) {
   const offline = isOfflineApp();
+  const native = isNativeApp();
   const [email, setEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [secPhone, setSecPhone] = useState("");
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
-  const [busyPhone, setBusyPhone] = useState(false);
   const [verify, setVerify] = useState(null);
 
-  const loadProfile = useCallback(async () => {
-    const { data } = await sb.auth.getSession();
-    const user = data.session?.user;
-    const cur = user?.email || "";
-    setEmail(cur);
-    setNewEmail(cur);
-    setSecPhone(user?.user_metadata?.security_phone || "");
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => {
+      const cur = data.session?.user?.email || "";
+      setEmail(cur);
+      setNewEmail(cur);
+    });
   }, []);
-
-  useEffect(() => { loadProfile(); }, [loadProfile]);
-
-  const saveSecurityPhone = async (e) => {
-    e.preventDefault();
-    if (!isSaPhone(secPhone)) return onToast("أدخل رقم جوال سعودي صحيح للتحقق");
-    setBusyPhone(true);
-    const { error } = await sb.auth.updateUser({ data: { security_phone: toSaPhone(secPhone) } });
-    setBusyPhone(false);
-    if (error) return onToast(error.message || "تعذّر حفظ جوال التحقق");
-    setSecPhone(toSaPhone(secPhone));
-    onToast("تم حفظ جوال التحقق");
-  };
 
   const startEmailChange = (e) => {
     e.preventDefault();
     const next = newEmail.trim().toLowerCase();
     if (!next || next === email) return;
-    if (!isSaPhone(secPhone)) return onToast("احفظ جوال التحقق أولاً قبل تغيير البريد");
     setVerify({ kind: "email", next });
   };
 
@@ -1374,7 +1388,6 @@ function ProfilePanel({ onToast }) {
     e.preventDefault();
     if (pass.length < 6) return onToast("كلمة المرور يجب ألا تقل عن 6 أحرف");
     if (pass !== pass2) return onToast("كلمتا المرور غير متطابقتين");
-    if (!isSaPhone(secPhone)) return onToast("احفظ جوال التحقق أولاً قبل تغيير كلمة المرور");
     setVerify({ kind: "password", next: pass });
   };
 
@@ -1383,23 +1396,18 @@ function ProfilePanel({ onToast }) {
       <div className="ph">
         <div>
           <h1>الملف الشخصي</h1>
-          <p>أي تغيير للبريد أو كلمة المرور يُحفظ في قاعدة مصادقة الحساب وينعكس على الموقع والويندوز والجوال</p>
+          <p>
+            {native
+              ? "تغيير البريد أو كلمة المرور يحتاج بصمة الجهاز أو رمز القفل + كلمة المرور الحالية"
+              : "تغيير البريد أو كلمة المرور يحتاج كلمة المرور الحالية للتأكيد"}
+          </p>
         </div>
       </div>
-
-      <form className="card profile-card" onSubmit={saveSecurityPhone}>
-        <div className="card-h">
-          <b>جوال التحقق</b>
-          <span className="sub" style={{ margin: 0 }}>مطلوب قبل تغيير البريد أو كلمة المرور</span>
-        </div>
-        <F l="رقم الجوال"><SaudiPhone required value={secPhone} onChange={setSecPhone} /></F>
-        <p className="profile-hint">يُرسل عليه رمز تأكيد عند أي تعديل حسّاس حتى لا يستطيع أحد التغيير من جهاز مفتوح فقط.</p>
-        <div className="composer-a"><button className="pri" disabled={busyPhone}>{busyPhone ? "جارٍ الحفظ..." : "حفظ جوال التحقق"}</button></div>
-      </form>
 
       <form className="card profile-card" onSubmit={startEmailChange}>
         <div className="card-h"><b>البريد الإلكتروني</b><span className="sub" style={{ margin: 0 }}>الحالي: {email || "—"}</span></div>
         <F l="البريد الجديد"><input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} autoComplete="email" /></F>
+        <p className="profile-hint">يُحفظ في قاعدة مصادقة الحساب وينعكس على الموقع والويندوز والجوال.</p>
         <div className="composer-a"><button className="pri" type="submit">تغيير البريد</button></div>
       </form>
 
@@ -1416,23 +1424,24 @@ function ProfilePanel({ onToast }) {
         <SecurityVerify
           kind={verify.kind}
           email={email}
-          securityPhone={toSaPhone(secPhone)}
-          offline={offline}
+          native={native}
           onClose={() => setVerify(null)}
           onToast={onToast}
-          onDone={async (currentPassword, otp) => {
+          onDone={async (currentPassword) => {
+            const device = await verifyDeviceLock(
+              verify.kind === "email" ? "أكّد هويتك لتغيير البريد" : "أكّد هويتك لتغيير كلمة المرور"
+            );
+            if (!device.ok) throw new Error(device.error || "فشل تحقق الجهاز");
+
             const login = await sb.auth.signInWithPassword({ email, password: currentPassword });
             if (login.error) throw new Error("كلمة المرور الحالية غير صحيحة");
-
-            const otpOk = await confirmSecurityOtp(toSaPhone(secPhone), otp);
-            if (!otpOk) throw new Error("رمز الجوال غير صحيح أو منتهٍ");
 
             if (verify.kind === "email") {
               const { error } = await sb.auth.updateUser({ email: verify.next });
               if (error) throw new Error(error.message || "تعذّر تحديث البريد");
               setEmail(verify.next);
               setNewEmail(verify.next);
-              onToast(offline ? "تم تحديث البريد في الحساب" : "تم حفظ البريد في قاعدة المصادقة — قد يلزم تأكيد الرابط إن كان مفعّلاً");
+              onToast(offline ? "تم تحديث البريد في الحساب" : "تم حفظ البريد في قاعدة المصادقة");
             } else {
               const { error } = await sb.auth.updateUser({ password: verify.next });
               if (error) throw new Error(error.message || "تعذّر تحديث كلمة المرور");
@@ -1448,82 +1457,16 @@ function ProfilePanel({ onToast }) {
   );
 }
 
-const OTP_KEY = "ac_mgr_security_otp";
-
-function makeOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-async function sendSecurityOtp(phone, offline) {
-  const code = makeOtp();
-  const payload = { phone: toSaPhone(phone), code, exp: Date.now() + 5 * 60 * 1000 };
-  try { sessionStorage.setItem(OTP_KEY, JSON.stringify(payload)); } catch (_) {}
-
-  if (offline) return { ok: true, via: "offline", code };
-
-  const e164 = "+" + waDigits(phone);
-  // Deliver OTP to the security phone via the device SMS composer (works without Twilio).
-  try {
-    const body = encodeURIComponent("رمز التحقق لتعديل حساب المهندس رشاد: " + code + " — صالح لـ 5 دقائق");
-    const href = "sms:" + e164 + "?&body=" + body;
-    const a = document.createElement("a");
-    a.href = href;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } catch (_) { /* desktop may ignore sms: */ }
-
-  return { ok: true, via: "sms-link", code };
-}
-
-async function confirmSecurityOtp(phone, otp) {
-  const token = String(otp || "").trim();
-  if (!/^\d{6}$/.test(token)) return false;
-  try {
-    const raw = sessionStorage.getItem(OTP_KEY);
-    if (!raw) return false;
-    const saved = JSON.parse(raw);
-    if (!saved || saved.phone !== toSaPhone(phone)) return false;
-    if (Date.now() > saved.exp) return false;
-    if (String(saved.code) !== token) return false;
-    sessionStorage.removeItem(OTP_KEY);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
-function SecurityVerify({ kind, email, securityPhone, offline, onClose, onToast, onDone }) {
+function SecurityVerify({ kind, email, native, onClose, onToast, onDone }) {
   const [currentPassword, setCurrentPassword] = useState("");
-  const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  const sendCode = async () => {
-    setSending(true);
-    try {
-      const res = await sendSecurityOtp(securityPhone, offline);
-      if (!res.ok) throw new Error("تعذّر إرسال الرمز");
-      setSent(true);
-      if (res.code) onToast("رمز التحقق: " + res.code + " — صالح 5 دقائق");
-      else onToast("تم إرسال رمز التحقق");
-    } catch (err) {
-      onToast(err.message || "تعذّر إرسال رمز الجوال");
-    } finally {
-      setSending(false);
-    }
-  };
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!sent) return onToast("أرسل رمز الجوال أولاً");
     if (!currentPassword) return onToast("أدخل كلمة المرور الحالية");
-    if (!/^\d{6}$/.test(otp.trim())) return onToast("أدخل رمز الجوال المكوّن من 6 أرقام");
     setBusy(true);
     try {
-      await onDone(currentPassword, otp.trim());
+      await onDone(currentPassword);
     } catch (err) {
       onToast(err.message || "فشل التحقق");
     } finally {
@@ -1538,7 +1481,8 @@ function SecurityVerify({ kind, email, securityPhone, offline, onClose, onToast,
           <div>
             <h3 id="sec-verify-title">تأكيد الهوية</h3>
             <p className="sub">
-              {kind === "email" ? "لتغيير البريد" : "لتغيير كلمة المرور"} نحتاج كلمة المرور الحالية ورمز يُرسل لجوال التحقق {securityPhone || ""}
+              {kind === "email" ? "لتغيير البريد" : "لتغيير كلمة المرور"} أدخل كلمة المرور الحالية
+              {native ? "، ثم أكّد ببصمة الجهاز أو رمز قفل الشاشة." : "."}
             </p>
           </div>
           <button type="button" className="ib" onClick={onClose} aria-label="إغلاق"><X size={18} /></button>
@@ -1547,24 +1491,12 @@ function SecurityVerify({ kind, email, securityPhone, offline, onClose, onToast,
           <F l="كلمة المرور الحالية">
             <input type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" />
           </F>
-          <F l="رمز الجوال">
-            <div className="otp-row">
-              <input
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                required
-                value={otp}
-                onChange={(e) => setOtp(digits(e.target.value).slice(0, 6))}
-                placeholder="000000"
-                className="otp-input"
-              />
-              <button type="button" className="soft" disabled={sending} onClick={sendCode}>
-                {sending ? "جارٍ الإرسال..." : sent ? "إعادة إرسال" : "إرسال الرمز"}
-              </button>
-            </div>
-          </F>
-          <p className="profile-hint">البريد الحالي للدخول: {email || "—"}</p>
+          <p className="profile-hint">
+            {native
+              ? "بعد الضغط على تأكيد سيطلب الجهاز البصمة أو رمز القفل تلقائياً."
+              : "على الجوال يتم التحقق أيضاً ببصمة الجهاز أو رمز القفل إن وُجد."}
+          </p>
+          <p className="profile-hint">البريد الحالي: {email || "—"}</p>
         </div>
         <div className="mf">
           <button className="pri" disabled={busy}>{busy ? "جارٍ التحقق..." : "تأكيد وحفظ"}</button>
