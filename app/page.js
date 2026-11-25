@@ -6,6 +6,7 @@ import { RiyalIcon } from "riyal/react";
 import {
   Wrench, Users, UserCog, Wallet, Phone, MapPin, Plus, Pencil, Trash2,
   LogOut, Search, X, Calendar, TrendingUp, Clock, FileText, Menu, UserRound,
+  ChevronDown, Check,
 } from "lucide-react";
 
 const BRAND = "المهندس رشاد سعيد";
@@ -282,23 +283,36 @@ async function downloadInvoicePdf(job, customer, engineer) {
     host.remove();
   }
 }
-function NiceSelect({ value, onChange, options, placeholder = "اختر", className = "", muted = false, required = false }) {
+function NiceSelect({ value, onChange, options, placeholder = "اختر", className = "", muted = false, required = false, searchable = false, searchPlaceholder = "بحث..." }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
   const [menuStyle, setMenuStyle] = useState(null);
   const box = useRef(null);
   const menu = useRef(null);
+  const searchRef = useRef(null);
   const selected = options.find((o) => String(o.value) === String(value));
+  const canSearch = searchable || options.length > 7;
+  const query = q.trim().toLowerCase();
+  const filtered = !query ? options : options.filter((o) => {
+    const hay = [o.label, o.sub, o.search].filter(Boolean).join(" ").toLowerCase();
+    return hay.includes(query);
+  });
   const place = () => {
     if (!box.current) return;
     const r = box.current.getBoundingClientRect();
-    const maxH = Math.min(240, Math.max(140, window.innerHeight - r.bottom - 16));
+    const spaceBelow = window.innerHeight - r.bottom - 12;
+    const spaceAbove = r.top - 12;
+    const preferDown = spaceBelow >= 180 || spaceBelow >= spaceAbove;
+    const maxH = Math.min(320, Math.max(160, preferDown ? spaceBelow : spaceAbove));
+    const width = Math.max(Math.round(r.width), 240);
     setMenuStyle({
       position: "fixed",
-      top: Math.round(r.bottom + 6),
-      left: Math.round(r.left),
-      width: Math.round(r.width),
+      top: preferDown ? Math.round(r.bottom + 6) : undefined,
+      bottom: preferDown ? undefined : Math.round(window.innerHeight - r.top + 6),
+      left: Math.round(Math.min(r.left, window.innerWidth - width - 8)),
+      width,
       maxHeight: maxH,
-      zIndex: 80,
+      zIndex: 90,
     });
   };
   useLayoutEffect(() => {
@@ -311,9 +325,10 @@ function NiceSelect({ value, onChange, options, placeholder = "اختر", classN
       window.removeEventListener("resize", onScroll);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [open]);
+  }, [open, filtered.length, canSearch]);
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setQ(""); return; }
+    const t = setTimeout(() => searchRef.current?.focus(), 30);
     const close = (e) => {
       if (box.current?.contains(e.target) || menu.current?.contains(e.target)) return;
       setOpen(false);
@@ -322,10 +337,15 @@ function NiceSelect({ value, onChange, options, placeholder = "اختر", classN
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", onKey);
     return () => {
+      clearTimeout(t);
       document.removeEventListener("mousedown", close);
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+  const pick = (val) => {
+    onChange({ target: { value: val } });
+    setOpen(false);
+  };
   return (
     <div className={"ns" + (open ? " open" : "") + (muted ? " muted" : "") + (className ? " " + className : "")} ref={box}>
       <button
@@ -335,28 +355,52 @@ function NiceSelect({ value, onChange, options, placeholder = "اختر", classN
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className={!selected || selected.value === "" ? "ns-ph" : ""}>{selected?.label || placeholder}</span>
+        <span className={"ns-val" + (!selected || selected.value === "" ? " ns-ph" : "")}>
+          <span className="ns-val-main">{selected?.label || placeholder}</span>
+          {selected?.sub ? <span className="ns-val-sub">{selected.sub}</span> : null}
+        </span>
+        <ChevronDown size={16} className="ns-chev" aria-hidden="true" />
       </button>
       {required && <input tabIndex={-1} value={value ?? ""} required readOnly aria-hidden="true" className="ns-req" />}
       {open && menuStyle && createPortal(
-        <ul className="ns-menu portal" role="listbox" ref={menu} style={menuStyle}>
-          {options.map((o) => (
-            <li key={String(o.value)}>
-              <button
-                type="button"
-                className={"ns-opt" + (String(o.value) === String(value) ? " on" : "") + (o.dim ? " dim" : "")}
-                role="option"
-                aria-selected={String(o.value) === String(value)}
-                onClick={() => {
-                  onChange({ target: { value: o.value } });
-                  setOpen(false);
-                }}
-              >
-                {o.label}
-              </button>
-            </li>
-          ))}
-        </ul>,
+        <div className="ns-pop portal" ref={menu} style={menuStyle}>
+          {canSearch && (
+            <div className="ns-search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                ref={searchRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={searchPlaceholder}
+                aria-label="بحث في القائمة"
+              />
+              {q ? <button type="button" className="ns-clear" aria-label="مسح" onClick={() => setQ("")}><X size={14} /></button> : null}
+            </div>
+          )}
+          <ul className="ns-menu" role="listbox">
+            {filtered.map((o) => {
+              const on = String(o.value) === String(value);
+              return (
+                <li key={String(o.value)}>
+                  <button
+                    type="button"
+                    className={"ns-opt" + (on ? " on" : "") + (o.dim ? " dim" : "") + (o.accent ? " accent" : "")}
+                    role="option"
+                    aria-selected={on}
+                    onClick={() => pick(o.value)}
+                  >
+                    <span className="ns-opt-text">
+                      <span className="ns-opt-label">{o.label}</span>
+                      {o.sub ? <span className="ns-opt-sub">{o.sub}</span> : null}
+                    </span>
+                    {on ? <Check size={16} className="ns-check" aria-hidden="true" /> : null}
+                  </button>
+                </li>
+              );
+            })}
+            {!filtered.length && <li className="ns-empty">لا توجد نتائج</li>}
+          </ul>
+        </div>,
         document.body
       )}
     </div>
@@ -950,15 +994,15 @@ function CustomerForm({ onClose, onSaved, onError }) {
         <div className="mh">
           <div>
             <h3 id="cust-add-title">إضافة عميل</h3>
-            <p className="sub">الاسم والجوال والحي والعنوان مطلوبة.</p>
+            <p className="sub">الاسم والجوال والعنوان والحي مطلوبة.</p>
           </div>
           <button type="button" className="ib" onClick={onClose} aria-label="إغلاق"><X size={18} /></button>
         </div>
         <div className="body">
           <F l="الاسم"><input required value={v.name} onChange={set("name")} /></F>
           <F l="الجوال"><SaudiPhone required value={v.phone} onChange={(phone) => setV({ ...v, phone })} /></F>
-          <F l="الحي"><input required value={v.district} onChange={set("district")} placeholder="مثال: البوادي" /></F>
           <F l="العنوان"><input required value={v.address} onChange={set("address")} placeholder="الشارع / المبنى" /></F>
+          <F l="الحي"><input required value={v.district} onChange={set("district")} placeholder="مثال: البوادي" /></F>
           <F l="رابط خرائط جوجل (اختياري)">
             <input type="url" inputMode="url" value={v.map_url} onChange={set("map_url")} placeholder="https://maps.google.com/..." />
           </F>
@@ -1272,20 +1316,27 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
           <F l="العميل">
             <NiceSelect
               required
+              searchable
+              searchPlaceholder="ابحث بالاسم أو الجوال..."
               value={g("customer_id")}
               onChange={set("customer_id")}
               placeholder="اختر العميل"
               options={[
-                { value: "new", label: "+ عميل جديد" },
-                ...d.c.map((c) => ({ value: c.id, label: `${c.name} ${c.phone || ""}`.trim() })),
+                { value: "new", label: "عميل جديد", sub: "إضافة عميل غير موجود", accent: true },
+                ...d.c.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  sub: [c.phone, custAddr(c)].filter(Boolean).join(" · ") || "بدون بيانات تواصل",
+                  search: `${c.name} ${c.phone || ""} ${c.district || ""} ${c.address || ""}`,
+                })),
               ]}
             />
           </F>
           {v.customer_id === "new" && <div className="two">
             <F l="اسم العميل"><input required value={g("nm")} onChange={set("nm")} /></F>
             <F l="الجوال"><SaudiPhone required value={g("ph")} onChange={(ph) => setV({ ...v, ph })} /></F>
-            <F l="الحي"><input required value={g("di")} onChange={set("di")} placeholder="مثال: البوادي" /></F>
             <F l="العنوان"><input required value={g("ad")} onChange={set("ad")} placeholder="الشارع / المبنى / تفصيل إضافي" /></F>
+            <F l="الحي"><input required value={g("di")} onChange={set("di")} placeholder="مثال: البوادي" /></F>
             <F l="رابط خرائط جوجل (اختياري)">
               <input type="url" inputMode="url" value={g("mp")} onChange={set("mp")} placeholder="https://maps.google.com/..." />
             </F>
@@ -1303,12 +1354,19 @@ function JobForm({ init, d, em, brands, types, onClose, onSaved, onError }) {
             )}
             <F l="المهندس المنفّذ">
               <NiceSelect
+                searchable={d.e.length > 5}
+                searchPlaceholder="ابحث عن مهندس..."
                 muted={!g("engineer_id")}
                 value={g("engineer_id")}
                 onChange={set("engineer_id")}
                 options={[
                   { value: "", label: "بدون مهندس", dim: true },
-                  ...d.e.map((e) => ({ value: e.id, label: e.name })),
+                  ...d.e.map((e) => ({
+                    value: e.id,
+                    label: e.name,
+                    sub: e.phone || undefined,
+                    search: `${e.name} ${e.phone || ""}`,
+                  })),
                 ]}
               />
             </F>
